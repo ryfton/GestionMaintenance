@@ -73,20 +73,20 @@ function render() {
 }
 
 async function loadTechnicians(){
-  const { data, error } = await supabaseClient.from('techniciens').select('*').eq('actif', true).order('nom', { ascending: true });
+  const { data, error } = await window.supabaseClient.from('techniciens').select('*').eq('actif', true).order('nom', { ascending: true });
   if (!error) technicians = data || [];
   renderTechniciansOptions();
 }
 
 async function loadProfile(userId){
-  const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', userId).single();
+  const { data, error } = await window.supabaseClient.from('profiles').select('*').eq('id', userId).single();
   if (!error) currentProfile = data;
 }
 
 async function loadRequests() {
-  const { data, error } = await supabaseClient
+  const { data, error } = await window.supabaseClient
     .from('interventions')
-    .select(`*, techniciens(id, nom)`) 
+    .select(`*, techniciens(id, nom)`)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -120,8 +120,14 @@ async function refreshAll(){
 async function login() {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value.trim();
-  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  const { data, error } = await window.supabaseClient.auth.signInWithPassword({
+    email,
+    password
+  });
+
   if (error) return alert('Connexion refusée : ' + error.message);
+
   currentUser = data.user;
   await loadProfile(currentUser.id);
   showScreen('app');
@@ -129,7 +135,7 @@ async function login() {
 }
 
 async function logout() {
-  await supabaseClient.auth.signOut();
+  await window.supabaseClient.auth.signOut();
   currentUser = null;
   currentProfile = null;
   showScreen('login');
@@ -192,8 +198,8 @@ function openDetails(id) {
 async function loadHistory(id){
   const box = document.getElementById('historyBox');
   if (!box) return;
-  const { data } = await supabaseClient.from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
-  const { data: notes } = await supabaseClient.from('notes_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
+  const { data } = await window.supabaseClient.from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
+  const { data: notes } = await window.supabaseClient.from('notes_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
   const h = (data || []).map(x => `<div class="detail-box" style="margin-bottom:8px"><small>${new Date(x.created_at).toLocaleString('fr-FR')}</small><div>${x.ancien_etat || '-'} → ${x.nouvel_etat || '-'}</div><div>${x.note || ''}</div></div>`).join('');
   const n = (notes || []).map(x => `<div class="detail-box" style="margin-bottom:8px"><small>${new Date(x.created_at).toLocaleString('fr-FR')}</small><div>${x.note}</div><div class="meta">${x.created_by || ''}</div></div>`).join('');
   box.innerHTML = h + n || '<p class="meta">Aucun historique.</p>';
@@ -209,98 +215,12 @@ async function loadTechSelectInModal(selected=''){
 async function updateStatus(id, newStatus) {
   const oldRequest = requests.find(r => r.id === id);
   const oldStatus = oldRequest ? oldRequest.status : null;
-  const { error } = await supabaseClient.from('interventions').update({ etat: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+  const { error } = await window.supabaseClient.from('interventions').update({ etat: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) return alert('Erreur mise à jour : ' + error.message);
-  await supabaseClient.from('historique_interventions').insert([{ intervention_id: id, ancien_etat: oldStatus, nouvel_etat: newStatus, note: `Changement d'état`, changed_by: currentUser?.email || null }]);
+  await window.supabaseClient.from('historique_interventions').insert([{ intervention_id: id, ancien_etat: oldStatus, nouvel_etat: newStatus, note: `Changement d'état`, changed_by: currentUser?.email || null }]);
   await refreshAll();
   modal.close();
 }
 
 async function takeCharge(id){
-  const tech = technicians.find(t => t.email === currentUser?.email);
-  if (!tech) return alert('Aucun technicien trouvé pour cet utilisateur.');
-  const { error } = await supabaseClient.from('interventions').update({ technicien_id: tech.id, etat: 'EN COURS', updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) return alert(error.message);
-  await supabaseClient.from('historique_interventions').insert([{ intervention_id: id, ancien_etat: 'NOUVEAU', nouvel_etat: 'EN COURS', note: 'Prise en charge', changed_by: currentUser?.email || null }]);
-  await refreshAll();
-  modal.close();
-}
-
-async function saveNote(id){
-  const note = document.getElementById('noteText').value.trim();
-  if (!note) return;
-  const { error } = await supabaseClient.from('notes_interventions').insert([{ intervention_id: id, note, created_by: currentUser?.email || null }]);
-  if (error) return alert(error.message);
-  await refreshAll();
-  await loadHistory(id);
-  document.getElementById('noteText').value = '';
-}
-
-async function assignTech(id){
-  const techId = document.getElementById('techSelectModal').value || null;
-  const { error } = await supabaseClient.from('interventions').update({ technicien_id: techId, updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) return alert(error.message);
-  await refreshAll();
-  modal.close();
-}
-
-document.getElementById('loginBtn').addEventListener('click', login);
-document.getElementById('logoutBtn').addEventListener('click', logout);
-document.getElementById('closeModalBtn').addEventListener('click', () => modal.close());
-
-document.getElementById('priorityGroup').addEventListener('click', e => {
-  if (!e.target.matches('.chip')) return;
-  selectedPriority = e.target.dataset.value;
-  document.querySelectorAll('.chip').forEach(b => b.classList.toggle('active', b === e.target));
-});
-
-document.getElementById('requestForm').addEventListener('submit', async e => {
-  e.preventDefault();
-  const payload = {
-    demandeur: document.getElementById('name').value.trim(),
-    departement: document.getElementById('department').value.trim(),
-    site: document.getElementById('site').value.trim(),
-    equipement: document.getElementById('equipment').value.trim(),
-    materiel: document.getElementById('material').value.trim(),
-    priorite: selectedPriority,
-    description: document.getElementById('description').value.trim(),
-    etat: 'NOUVEAU',
-    cree_par: currentUser?.id || null
-  };
-  const techId = document.getElementById('technicienSelect').value || null;
-  const { data, error } = await supabaseClient.from('interventions').insert([{ ...payload, technicien_id: techId }]).select().single();
-  if (error) return alert('Erreur enregistrement : ' + error.message);
-  if (data) {
-    await supabaseClient.from('historique_interventions').insert([{ intervention_id: data.id, ancien_etat: null, nouvel_etat: 'NOUVEAU', note: 'Création de l’intervention', changed_by: currentUser?.email || null }]);
-  }
-  e.target.reset();
-  selectedPriority = 'Basse';
-  document.querySelectorAll('.chip').forEach(b => b.classList.toggle('active', b.dataset.value === 'Basse'));
-  await refreshAll();
-  alert('Intervention enregistrée.');
-});
-
-requestList.addEventListener('click', e => { const card = e.target.closest('.request-card'); if (card) openDetails(card.dataset.id); });
-modalBody.addEventListener('click', async e => {
-  const btn = e.target.closest('.status-btn');
-  if (!btn) return;
-  const id = modal.dataset.id;
-  if (btn.dataset.action === 'take') return takeCharge(id);
-  if (btn.dataset.status) return updateStatus(id, btn.dataset.status);
-});
-modalBody.addEventListener('click', async e => {
-  if (e.target.id === 'saveNoteBtn') return saveNote(modal.dataset.id);
-  if (e.target.id === 'saveTechBtn') return assignTech(modal.dataset.id);
-});
-['searchInput','statusFilter','priorityFilter'].forEach(id => document.getElementById(id).addEventListener('input', render));
-
-supabaseClient.auth.getSession().then(async ({ data }) => {
-  if (data.session) {
-    currentUser = data.session.user;
-    await loadProfile(currentUser.id);
-    showScreen('app');
-    await refreshAll();
-  } else {
-    showScreen('login');
-  }
-});
+  const tech = technicians.find
