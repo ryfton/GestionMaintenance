@@ -16,13 +16,27 @@ const openCount = document.getElementById('openCount');
 const doneCount = document.getElementById('doneCount');
 const technicienSelect = document.getElementById('technicienSelect');
 
+function sb() {
+  return window.supabaseClient;
+}
+
 function badgeClass(status) {
   return ({
-    'NOUVEAU':'b-nouveau','EN COURS':'b-cours','EN ATTENTE':'b-attente','TERMINE':'b-termine','ANNULE':'b-annule'
+    'NOUVEAU': 'b-nouveau',
+    'EN COURS': 'b-cours',
+    'EN ATTENTE': 'b-attente',
+    'TERMINE': 'b-termine',
+    'ANNULE': 'b-annule'
   })[status] || 'b-attente';
 }
 
-function roleName(r){ return ({admin:'Administrateur',technicien:'Technicien',demandeur:'Demandeur'})[r] || 'Utilisateur'; }
+function roleName(r) {
+  return ({
+    admin: 'Administrateur',
+    technicien: 'Technicien',
+    demandeur: 'Demandeur'
+  })[r] || 'Utilisateur';
+}
 
 function showScreen(name) {
   loginScreen.classList.toggle('active', name === 'login');
@@ -32,7 +46,9 @@ function showScreen(name) {
 }
 
 function renderTechniciansOptions(selected = '') {
-  technicienSelect.innerHTML = `<option value="">Aucun</option>` + technicians.map(t => `<option value="${t.id}" ${t.id===selected?'selected':''}>${t.nom}</option>`).join('');
+  technicienSelect.innerHTML =
+    '<option value="">Aucun</option>' +
+    technicians.map(t => `<option value="${t.id}" ${t.id === selected ? 'selected' : ''}>${t.nom}</option>`).join('');
 }
 
 function render() {
@@ -40,7 +56,8 @@ function render() {
   const nouveau = requests.filter(r => r.status === 'NOUVEAU').length;
   const cours = requests.filter(r => r.status === 'EN COURS').length;
   const done = requests.filter(r => r.status === 'TERMINE').length;
-  const open = requests.filter(r => ['NOUVEAU','EN COURS','EN ATTENTE'].includes(r.status)).length;
+  const open = requests.filter(r => ['NOUVEAU', 'EN COURS', 'EN ATTENTE'].includes(r.status)).length;
+
   statsText.textContent = `${total} total · ${nouveau} nouveau · ${cours} en cours`;
   openCount.textContent = open;
   doneCount.textContent = done;
@@ -51,7 +68,7 @@ function render() {
   const priority = document.getElementById('priorityFilter').value;
 
   const filtered = requests.filter(r =>
-    (!q || [r.code,r.name,r.department,r.site,r.equipment,r.material,r.description,r.technicienNom].join(' ').toLowerCase().includes(q)) &&
+    (!q || [r.code, r.name, r.department, r.site, r.equipment, r.material, r.description, r.technicienNom].join(' ').toLowerCase().includes(q)) &&
     (!status || r.status === status) &&
     (!priority || r.priority === priority)
   );
@@ -72,21 +89,21 @@ function render() {
   `).join('') || '<p class="meta">Aucune intervention trouvée.</p>';
 }
 
-async function loadTechnicians(){
-  const { data, error } = await window.supabaseClient.from('techniciens').select('*').eq('actif', true).order('nom', { ascending: true });
-  if (!error) technicians = data || [];
+async function loadTechnicians() {
+  const { data, error } = await sb().from('techniciens').select('*').eq('actif', true).order('nom', { ascending: true });
+  technicians = error ? [] : (data || []);
   renderTechniciansOptions();
 }
 
-async function loadProfile(userId){
-  const { data, error } = await window.supabaseClient.from('profiles').select('*').eq('id', userId).single();
+async function loadProfile(userId) {
+  const { data, error } = await sb().from('profiles').select('*').eq('id', userId).single();
   if (!error) currentProfile = data;
 }
 
 async function loadRequests() {
-  const { data, error } = await window.supabaseClient
+  const { data, error } = await sb()
     .from('interventions')
-    .select(`*, techniciens(id, nom)`)
+    .select('*, techniciens(id, nom)')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -113,7 +130,7 @@ async function loadRequests() {
   render();
 }
 
-async function refreshAll(){
+async function refreshAll() {
   await Promise.all([loadTechnicians(), loadRequests()]);
 }
 
@@ -121,11 +138,7 @@ async function login() {
   const email = document.getElementById('email').value.trim();
   const password = document.getElementById('password').value.trim();
 
-  const { data, error } = await window.supabaseClient.auth.signInWithPassword({
-    email,
-    password
-  });
-
+  const { data, error } = await sb().auth.signInWithPassword({ email, password });
   if (error) return alert('Connexion refusée : ' + error.message);
 
   currentUser = data.user;
@@ -135,10 +148,59 @@ async function login() {
 }
 
 async function logout() {
-  await window.supabaseClient.auth.signOut();
+  await sb().auth.signOut();
   currentUser = null;
   currentProfile = null;
+  technicians = [];
+  requests = [];
   showScreen('login');
+}
+
+async function loadHistory(id) {
+  const box = document.getElementById('historyBox');
+  if (!box) return;
+
+  const { data: history, error: hError } = await sb()
+    .from('historique_interventions')
+    .select('*')
+    .eq('intervention_id', id)
+    .order('created_at', { ascending: false });
+
+  const { data: notes, error: nError } = await sb()
+    .from('notes_interventions')
+    .select('*')
+    .eq('intervention_id', id)
+    .order('created_at', { ascending: false });
+
+  if (hError || nError) {
+    box.innerHTML = '<p class="meta">Erreur de chargement de l’historique.</p>';
+    return;
+  }
+
+  const h = (history || []).map(x => `
+    <div class="detail-box" style="margin-bottom:8px">
+      <small>${new Date(x.created_at).toLocaleString('fr-FR')}</small>
+      <div>${x.ancien_etat || '-'} → ${x.nouvel_etat || '-'}</div>
+      <div>${x.note || ''}</div>
+    </div>
+  `).join('');
+
+  const n = (notes || []).map(x => `
+    <div class="detail-box" style="margin-bottom:8px">
+      <small>${new Date(x.created_at).toLocaleString('fr-FR')}</small>
+      <div>${x.note}</div>
+      <div class="meta">${x.created_by || ''}</div>
+    </div>
+  `).join('');
+
+  box.innerHTML = h + n || '<p class="meta">Aucun historique.</p>';
+}
+
+async function loadTechSelectInModal(selected = '') {
+  const wrap = document.getElementById('techSelectWrap');
+  if (!wrap) return;
+  const options = technicians.map(t => `<option value="${t.id}" ${t.id === selected ? 'selected' : ''}>${t.nom}</option>`).join('');
+  wrap.innerHTML = `<select id="techSelectModal"><option value="">Aucun</option>${options}</select>`;
 }
 
 function openDetails(id) {
@@ -176,7 +238,7 @@ function openDetails(id) {
     </div>
 
     <div style="margin-top:16px">
-      <label for="techSelectModal"><strong>Assigner un technicien</strong></label>
+      <label><strong>Assigner un technicien</strong></label>
       <div id="techSelectWrap"></div>
       <div class="action-row">
         <button class="small-btn" id="saveTechBtn">Assigner</button>
@@ -195,32 +257,160 @@ function openDetails(id) {
   loadTechSelectInModal(r.technicienId || '');
 }
 
-async function loadHistory(id){
-  const box = document.getElementById('historyBox');
-  if (!box) return;
-  const { data } = await window.supabaseClient.from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
-  const { data: notes } = await window.supabaseClient.from('notes_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
-  const h = (data || []).map(x => `<div class="detail-box" style="margin-bottom:8px"><small>${new Date(x.created_at).toLocaleString('fr-FR')}</small><div>${x.ancien_etat || '-'} → ${x.nouvel_etat || '-'}</div><div>${x.note || ''}</div></div>`).join('');
-  const n = (notes || []).map(x => `<div class="detail-box" style="margin-bottom:8px"><small>${new Date(x.created_at).toLocaleString('fr-FR')}</small><div>${x.note}</div><div class="meta">${x.created_by || ''}</div></div>`).join('');
-  box.innerHTML = h + n || '<p class="meta">Aucun historique.</p>';
-}
-
-async function loadTechSelectInModal(selected=''){
-  const wrap = document.getElementById('techSelectWrap');
-  if (!wrap) return;
-  const options = technicians.map(t => `<option value="${t.id}" ${t.id===selected?'selected':''}>${t.nom}</option>`).join('');
-  wrap.innerHTML = `<select id="techSelectModal"><option value="">Aucun</option>${options}</select>`;
-}
-
 async function updateStatus(id, newStatus) {
   const oldRequest = requests.find(r => r.id === id);
   const oldStatus = oldRequest ? oldRequest.status : null;
-  const { error } = await window.supabaseClient.from('interventions').update({ etat: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
+
+  const { error } = await sb().from('interventions').update({
+    etat: newStatus,
+    updated_at: new Date().toISOString()
+  }).eq('id', id);
+
   if (error) return alert('Erreur mise à jour : ' + error.message);
-  await window.supabaseClient.from('historique_interventions').insert([{ intervention_id: id, ancien_etat: oldStatus, nouvel_etat: newStatus, note: `Changement d'état`, changed_by: currentUser?.email || null }]);
+
+  await sb().from('historique_interventions').insert([{
+    intervention_id: id,
+    ancien_etat: oldStatus,
+    nouvel_etat: newStatus,
+    note: `Changement d'état`,
+    changed_by: currentUser?.email || null
+  }]);
+
   await refreshAll();
   modal.close();
 }
 
-async function takeCharge(id){
-  const tech = technicians.find
+async function takeCharge(id) {
+  const tech = technicians.find(t => t.email === currentUser?.email);
+  if (!tech) return alert('Aucun technicien trouvé pour cet utilisateur.');
+
+  const { error } = await sb().from('interventions').update({
+    technicien_id: tech.id,
+    etat: 'EN COURS',
+    updated_at: new Date().toISOString()
+  }).eq('id', id);
+
+  if (error) return alert('Erreur prise en charge : ' + error.message);
+
+  await sb().from('historique_interventions').insert([{
+    intervention_id: id,
+    ancien_etat: 'NOUVEAU',
+    nouvel_etat: 'EN COURS',
+    note: 'Prise en charge',
+    changed_by: currentUser?.email || null
+  }]);
+
+  await refreshAll();
+  modal.close();
+}
+
+async function saveNote(id) {
+  const noteEl = document.getElementById('noteText');
+  const note = noteEl ? noteEl.value.trim() : '';
+  if (!note) return;
+
+  const { error } = await sb().from('notes_interventions').insert([{
+    intervention_id: id,
+    note,
+    created_by: currentUser?.email || null
+  }]);
+
+  if (error) return alert('Erreur note : ' + error.message);
+
+  if (noteEl) noteEl.value = '';
+  await loadHistory(id);
+  await refreshAll();
+}
+
+async function assignTech(id) {
+  const select = document.getElementById('techSelectModal');
+  const techId = select ? select.value || null : null;
+
+  const { error } = await sb().from('interventions').update({
+    technicien_id: techId,
+    updated_at: new Date().toISOString()
+  }).eq('id', id);
+
+  if (error) return alert('Erreur assignation : ' + error.message);
+
+  await refreshAll();
+  modal.close();
+}
+
+document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('logoutBtn').addEventListener('click', logout);
+document.getElementById('closeModalBtn').addEventListener('click', () => modal.close());
+
+document.getElementById('priorityGroup').addEventListener('click', e => {
+  if (!e.target.matches('.chip')) return;
+  selectedPriority = e.target.dataset.value;
+  document.querySelectorAll('.chip').forEach(b => b.classList.toggle('active', b === e.target));
+});
+
+document.getElementById('requestForm').addEventListener('submit', async e => {
+  e.preventDefault();
+
+  const payload = {
+    demandeur: document.getElementById('name').value.trim(),
+    departement: document.getElementById('department').value.trim(),
+    site: document.getElementById('site').value.trim(),
+    equipement: document.getElementById('equipment').value.trim(),
+    materiel: document.getElementById('material').value.trim(),
+    priorite: selectedPriority,
+    description: document.getElementById('description').value.trim(),
+    etat: 'NOUVEAU',
+    cree_par: currentUser?.id || null,
+    technicien_id: document.getElementById('technicienSelect').value || null
+  };
+
+  const { data, error } = await sb().from('interventions').insert([payload]).select().single();
+  if (error) return alert('Erreur enregistrement : ' + error.message);
+
+  if (data) {
+    await sb().from('historique_interventions').insert([{
+      intervention_id: data.id,
+      ancien_etat: null,
+      nouvel_etat: 'NOUVEAU',
+      note: 'Création de l’intervention',
+      changed_by: currentUser?.email || null
+    }]);
+  }
+
+  e.target.reset();
+  selectedPriority = 'Basse';
+  document.querySelectorAll('.chip').forEach(b => b.classList.toggle('active', b.dataset.value === 'Basse'));
+  await refreshAll();
+  alert('Intervention enregistrée.');
+});
+
+requestList.addEventListener('click', e => {
+  const card = e.target.closest('.request-card');
+  if (card) openDetails(card.dataset.id);
+});
+
+modalBody.addEventListener('click', async e => {
+  const btn = e.target.closest('.status-btn');
+  if (btn) {
+    const id = modal.dataset.id;
+    if (btn.dataset.action === 'take') return takeCharge(id);
+    if (btn.dataset.status) return updateStatus(id, btn.dataset.status);
+  }
+
+  if (e.target.id === 'saveNoteBtn') return saveNote(modal.dataset.id);
+  if (e.target.id === 'saveTechBtn') return assignTech(modal.dataset.id);
+});
+
+['searchInput', 'statusFilter', 'priorityFilter'].forEach(id => {
+  document.getElementById(id).addEventListener('input', render);
+});
+
+sb().auth.getSession().then(async ({ data }) => {
+  if (data.session) {
+    currentUser = data.session.user;
+    await loadProfile(currentUser.id);
+    showScreen('app');
+    await refreshAll();
+  } else {
+    showScreen('login');
+  }
+});
