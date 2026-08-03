@@ -14,4 +14,25 @@ input,select,textarea{width:100%;border-radius:10px;border:1px solid var(--line)
 .toolbar{display:grid;grid-template-columns:1fr 160px 160px;gap:10px;border-radius:16px;padding:12px;margin-bottom:16px}.request-list{display:grid;gap:12px}
 .request-card{border-radius:16px;padding:14px;display:flex;justify-content:space-between;gap:14px;cursor:pointer}.badge{display:inline-block;padding:5px 10px;border-radius:999px;font-size:.78rem;font-weight:700}.b-nouveau{background:rgba(56,189,248,.16);color:var(--blue)}.b-cours{background:rgba(251,191,36,.16);color:#fbbf24}.b-termine{background:rgba(16,185,129,.16);color:var(--green)}.b-attente{background:rgba(148,163,184,.16);color:#cbd5e1}.b-annule{background:rgba(248,113,113,.16);color:var(--red)}.meta{color:var(--muted);font-size:.85rem;margin-top:6px}
 .modal::backdrop{background:rgba(0,0,0,.65)}.modal{border:0;background:transparent;padding:0}.modal-content{position:relative;width:min(820px,94vw);margin:auto;border-radius:18px;padding:22px}.close-btn{position:absolute;right:14px;top:10px;background:transparent;border:0;color:var(--muted);font-size:1.8rem;cursor:pointer}.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.detail-box{background:#111a30;border:1px solid var(--line);border-radius:12px;padding:12px}.action-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.status-btn:hover,.small-btn:hover{opacity:.9}.note-box{width:100%;min-height:90px}
-@media (max-width:850px){.dashboard-grid{grid-template-columns:1fr}.form-grid,.toolbar,.detail-grid{grid-template-columns:1fr}.request-card{flex-direction:column}.priority-group{grid-template-columns:1fr 1fr}.topbar{gap:10px;flex-direction:column;align-items:flex-start}}
+@media (max-width:850px){.dashboard-grid{grid-template-columns:1fr}.form-grid,.toolbar,.detail-grid{grid-template-columns:1fr}.request-card{flex-direction:column}.priority-group{grid-template-columns:1fr 1fr}.topbar{gap:10px;flex-direction:column;align-items:flex-start}
+                        .modal-content {
+  color: #e5eefc;
+}
+
+.modal-content h2,
+.modal-content h3,
+.modal-content strong,
+.modal-content label,
+.modal-content p,
+.modal-content small {
+  color: #e5eefc;
+}
+
+.modal-content .meta {
+  color: #8da0c0;
+}
+
+.modal-content .detail-box {
+  background: #111a30;
+  color: #e5eefc;
+}}
