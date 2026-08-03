@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maintenance - Tableau de bord</title>
+  <link rel="stylesheet" href="style-2.css">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    window.supabaseClient = supabase.createClient('https://VOTRE-PROJET.supabase.co', 'VOTRE_CLE_ANON');
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>
+        <h1>Maintenance</h1>
+        <p>Tableau de bord</p>
+      </div>
+    </div>
+    <nav class="menu">
+      <a href="dashboard.html">Accueil</a>
+      <a href="new-request.html">Nouvelle intervention</a>
+      <a href="requests.html">Liste</a>
+      <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
+    </nav>
+  </header>
+
+  <main class="container auth-only">
+    <div class="dashboard-grid">
+      <div class="card quick-card"><h3>Interventions ouvertes</h3><p id="openCount">0</p></div>
+      <div class="card quick-card"><h3>Terminées</h3><p id="doneCount">0</p></div>
+      <div class="card quick-card"><h3>Rôle</h3><p id="userRoleText">-</p></div>
+    </div>
+    <div class="card">
+      <h2>Bienvenue</h2>
+      <p id="statsText">Chargement...</p>
+    </div>
+  </main>
+
+  <script src="script-3.js"></script>
+</body>
+</html>

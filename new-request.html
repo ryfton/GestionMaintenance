@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maintenance - Nouvelle intervention</title>
+  <link rel="stylesheet" href="style-2.css">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    window.supabaseClient = supabase.createClient('https://VOTRE-PROJET.supabase.co', 'VOTRE_CLE_ANON');
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>
+        <h1>Maintenance</h1>
+        <p>Nouvelle intervention</p>
+      </div>
+    </div>
+    <nav class="menu">
+      <a href="dashboard.html">Accueil</a>
+      <a href="new-request.html">Nouvelle intervention</a>
+      <a href="requests.html">Liste</a>
+      <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
+    </nav>
+  </header>
+
+  <main class="container auth-only">
+    <section class="card">
+      <h2>Créer une demande</h2>
+      <form class="form-grid" id="requestForm">
+        <div class="field">
+          <label for="name">Demandeur</label>
+          <input id="name" type="text" placeholder="Nom">
+        </div>
+        <div class="field">
+          <label for="department">Département</label>
+          <input id="department" type="text" placeholder="Département">
+        </div>
+        <div class="field">
+          <label for="site">Site</label>
+          <input id="site" type="text" placeholder="Site">
+        </div>
+        <div class="field">
+          <label for="equipment">Équipement</label>
+          <input id="equipment" type="text" placeholder="Équipement">
+        </div>
+        <div class="field">
+          <label for="material">Matériel</label>
+          <input id="material" type="text" placeholder="Matériel">
+        </div>
+        <div class="field">
+          <label for="technicienSelect">Technicien</label>
+          <select id="technicienSelect"><option value="">Aucun</option></select>
+        </div>
+        <div class="field full">
+          <label>Priorité</label>
+          <div class="priority-group" id="priorityGroup">
+            <button class="chip active" type="button" data-value="Basse">Basse</button>
+            <button class="chip" type="button" data-value="Moyenne">Moyenne</button>
+            <button class="chip" type="button" data-value="Haute">Haute</button>
+            <button class="chip" type="button" data-value="Urgente">Urgente</button>
+          </div>
+        </div>
+        <div class="field full">
+          <label for="description">Description</label>
+          <textarea id="description" class="note-box" placeholder="Description de l'intervention"></textarea>
+        </div>
+        <div class="form-actions full">
+          <button class="primary" type="submit">Enregistrer</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="script-3.js"></script>
+</body>
+</html>

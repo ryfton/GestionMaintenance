@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maintenance - Liste</title>
+  <link rel="stylesheet" href="style-2.css">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script>
+    window.supabaseClient = supabase.createClient('https://VOTRE-PROJET.supabase.co', 'VOTRE_CLE_ANON');
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>
+        <h1>Maintenance</h1>
+        <p>Liste des interventions</p>
+      </div>
+    </div>
+    <nav class="menu">
+      <a href="dashboard.html">Accueil</a>
+      <a href="new-request.html">Nouvelle intervention</a>
+      <a href="requests.html">Liste</a>
+      <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
+    </nav>
+  </header>
+
+  <main class="container auth-only">
+    <div class="toolbar">
+      <input id="searchInput" type="text" placeholder="Rechercher...">
+      <select id="statusFilter">
+        <option value="">Tous les statuts</option>
+        <option value="NOUVEAU">Nouveau</option>
+        <option value="EN COURS">En cours</option>
+        <option value="EN ATTENTE">En attente</option>
+        <option value="TERMINE">Terminé</option>
+        <option value="ANNULE">Annulé</option>
+      </select>
+      <select id="priorityFilter">
+        <option value="">Toutes priorités</option>
+        <option value="Basse">Basse</option>
+        <option value="Moyenne">Moyenne</option>
+        <option value="Haute">Haute</option>
+        <option value="Urgente">Urgente</option>
+      </select>
+    </div>
+    <div class="request-list" id="requestList"></div>
+  </main>
+
+  <dialog class="modal" id="detailsModal">
+    <div class="modal-content" id="modalBody">
+      <button class="close-btn" id="closeModalBtn" type="button">×</button>
+    </div>
+  </dialog>
+
+  <script src="script-3.js"></script>
+</body>
+</html>
