@@ -1,37 +1,216 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Maintenance - Liste</title>
-  <link rel="stylesheet" href="style-2.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_YMqvlXionoIK50UPJXXEtw_e2t22Pkn";
-    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demandes de maintenance</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --line: #334155;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --info: #3b82f6;
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    input, select, textarea, button {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      color: var(--text);
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .btn-primary { background: var(--accent); color: #052e16; border: none; }
+    .btn-secondary { background: var(--panel-2); }
+    .btn-danger { background: var(--danger); color: white; border: none; }
+    .request-list {
+      display: grid;
+      gap: 14px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: start;
+      flex-wrap: wrap;
+    }
+    .title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 14px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .b-nouveau { background: #1d4ed8; color: white; }
+    .b-cours { background: #f59e0b; color: #111827; }
+    .b-attente { background: #64748b; color: white; }
+    .b-termine { background: #16a34a; color: white; }
+    .b-annule { background: #dc2626; color: white; }
+    .priority { background: #374151; color: white; }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.72);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+    .modal.active { display: flex; }
+    .modal-card {
+      width: min(900px, 100%);
+      max-height: 92vh;
+      overflow: auto;
+      background: #0b1220;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 20px;
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .section h3 {
+      margin-top: 0;
+      margin-bottom: 12px;
+      font-size: 16px;
+    }
+    .field {
+      margin-bottom: 12px;
+    }
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .notes-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .note-item {
+      padding: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+    }
+    .note-meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 6px;
+    }
+    .status {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">M</div>
+  <main class="page">
+    <div class="topbar">
       <div>
-        <h1>Maintenance</h1>
-        <p>Liste des interventions</p>
+        <h1 style="margin:0 0 6px 0;">Demandes</h1>
+        <p class="status" id="statsText">Chargement...</p>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn-secondary" onclick="location.href='dashboard.html'">Tableau de bord</button>
+        <button class="btn-primary" onclick="location.href='new-request.html'">Nouvelle demande</button>
       </div>
     </div>
-    <nav class="menu">
-      <a href="dashboard.html">Accueil</a>
-      <a href="new-request.html">Nouvelle intervention</a>
-      <a href="requests.html">Liste</a>
-      <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
-    </nav>
-  </header>
 
-  <main class="container auth-only">
-    <div class="toolbar">
-      <input id="searchInput" type="text" placeholder="Rechercher...">
+    <section class="filters">
+      <input id="searchInput" type="text" placeholder="Rechercher code, équipement, technicien..." />
       <select id="statusFilter">
         <option value="">Tous les statuts</option>
         <option value="NOUVEAU">Nouveau</option>
@@ -47,15 +226,24 @@
         <option value="Haute">Haute</option>
         <option value="Urgente">Urgente</option>
       </select>
-    </div>
-    <div class="request-list" id="requestList"></div>
+      <button class="btn-secondary" id="refreshBtn">Actualiser</button>
+    </section>
+
+    <section id="requestList" class="request-list"></section>
   </main>
 
-  <dialog class="modal" id="detailsModal">
-    <div class="modal-content" id="modalBody">
-      <button class="close-btn" id="closeModalBtn" type="button">×</button>
+  <div class="modal" id="detailsModal" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h2 id="modalTitle" style="margin:0 0 6px 0;">Détails intervention</h2>
+          <p id="modalSubtitle" class="status">-</p>
+        </div>
+        <button class="btn-danger" id="closeModalBtn" style="width:auto;">Fermer</button>
+      </div>
+      <div id="modalBody"></div>
     </div>
-  </dialog>
+  </div>
 
   <script src="script-3.js"></script>
 </body>
