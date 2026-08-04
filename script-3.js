@@ -3,8 +3,9 @@ let currentProfile = null;
 let selectedPriority = 'Basse';
 let requests = [];
 let technicians = [];
-let notesByRequest = {};
-let selectedRequestId = null;
+
+const detailsModal = document.getElementById('detailsModal');
+const modalBody = document.getElementById('modalBody');
 
 function sb() {
   return window.supabaseClient;
@@ -36,59 +37,40 @@ function roleName(r) {
   })[r] || 'Utilisateur';
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-function canEditRequest() {
-  return ['admin', 'technicien'].includes(currentProfile?.role);
+function renderTechniciansOptions(selected = '') {
+  return '<option value="">Aucun</option>' + technicians.map(t =>
+    `<option value="${t.id}" ${String(t.id) === String(selected) ? 'selected' : ''}>${t.nom}</option>`
+  ).join('');
 }
 
 async function ensureAuth() {
-  if (!sb()?.auth) return true;
   const { data } = await sb().auth.getSession();
   currentUser = data.session?.user || null;
-  if (!currentUser && page() !== 'login') {
-    location.href = 'index.html';
-    return false;
-  }
-  return true;
+  if (!currentUser && page() !== 'login') location.href = 'index.html';
+  return !!currentUser;
 }
 
 async function loadProfile(userId) {
-  if (!sb()?.from || !userId) return;
   const { data, error } = await sb().from('profiles').select('*').eq('id', userId).single();
   if (!error) currentProfile = data;
 }
 
 async function loadTechnicians() {
-  if (!sb()?.from) return;
-  const allSelects = document.querySelectorAll('[data-technicien-select]');
   const { data, error } = await sb().from('techniciens').select('*').eq('actif', true).order('nom', { ascending: true });
   technicians = error ? [] : (data || []);
-  allSelects.forEach(sel => {
-    const currentValue = sel.dataset.selected || '';
-    sel.innerHTML = '<option value="">Aucun</option>' + technicians.map(t =>
-      `<option value="${t.id}" ${String(currentValue) === String(t.id) ? 'selected' : ''}>${escapeHtml(t.nom)}</option>`
-    ).join('');
-  });
 }
 
 async function loadRequests() {
   const list = document.getElementById('requestList');
-  if (!list || !sb()?.from) return;
+  if (!list) return;
+
   const { data, error } = await sb()
     .from('interventions')
     .select('*, techniciens(id, nom)')
     .order('created_at', { ascending: false });
 
   if (error) {
-    alert('Erreur chargement interventions : ' + error.message);
+    list.innerHTML = `<div class="card"><p>Erreur chargement interventions : ${error.message}</p></div>`;
     return;
   }
 
@@ -105,7 +87,7 @@ async function loadRequests() {
     status: row.etat,
     technicienId: row.technicien_id,
     technicienNom: row.techniciens?.nom || '',
-    createdAt: row.created_at ? new Date(row.created_at).toLocaleString('fr-FR') : ''
+    createdAt: new Date(row.created_at).toLocaleString('fr-FR')
   }));
 
   renderDashboard();
@@ -117,6 +99,8 @@ function renderDashboard() {
   const doneCount = document.getElementById('doneCount');
   const userRoleText = document.getElementById('userRoleText');
   const statsText = document.getElementById('statsText');
+  if (!statsText) return;
+
   const total = requests.length;
   const nouveau = requests.filter(r => r.status === 'NOUVEAU').length;
   const cours = requests.filter(r => r.status === 'EN COURS').length;
@@ -126,14 +110,16 @@ function renderDashboard() {
   if (openCount) openCount.textContent = open;
   if (doneCount) doneCount.textContent = done;
   if (userRoleText) userRoleText.textContent = roleName(currentProfile?.role);
-  if (statsText) statsText.textContent = `${total} total · ${nouveau} nouveau · ${cours} en cours`;
+  statsText.textContent = `${total} total · ${nouveau} nouveau · ${cours} en cours`;
+  const roleLabel = document.getElementById('roleLabel');
+  if (roleLabel) roleLabel.textContent = currentUser ? `Connecté : ${currentUser.email}` : 'ACCUEIL';
 }
 
 function renderRequests() {
-  const list = document.getElementById('requestList');
-  if (!list) return;
+  const requestList = document.getElementById('requestList');
+  if (!requestList) return;
 
-  const q = document.getElementById('searchInput')?.value?.toLowerCase() || '';
+  const q = document.getElementById('searchInput')?.value.toLowerCase() || '';
   const status = document.getElementById('statusFilter')?.value || '';
   const priority = document.getElementById('priorityFilter')?.value || '';
 
@@ -144,282 +130,177 @@ function renderRequests() {
   );
 
   if (!filtered.length) {
-    list.innerHTML = '<div class="empty">Aucune demande trouvée.</div>';
+    requestList.innerHTML = '<div class="card"><p>Aucune intervention trouvée.</p></div>';
     return;
   }
 
-  list.innerHTML = filtered.map(r => `
-    <article class="card">
-      <div class="card-head">
-        <div>
-          <div class="title">${escapeHtml(r.code || '')} — ${escapeHtml(r.equipment || '')}</div>
-          <div class="meta">
-            <span>Demandeur : ${escapeHtml(r.name || '-')}</span>
-            <span>Site : ${escapeHtml(r.site || '-')}</span>
-            <span>Technicien : ${escapeHtml(r.technicienNom || 'Aucun')}</span>
-            <span>Créé : ${escapeHtml(r.createdAt || '-')}</span>
-          </div>
-        </div>
-        <div class="badges">
-          <span class="badge ${badgeClass(r.status)}">${escapeHtml(r.status || '-')}</span>
-          <span class="badge priority">${escapeHtml(r.priority || '-')}</span>
-        </div>
+  requestList.innerHTML = filtered.map(r => `
+    <div class="request-card" onclick="openDetails('${r.id}')">
+      <div>
+        <strong>${r.code || ''} — ${r.equipment || ''}</strong>
+        <p class="meta">${r.name || ''} · ${r.department || ''} · ${r.site || ''}</p>
+        <p class="meta">Technicien : ${r.technicienNom || 'Aucun'} · Créé : ${r.createdAt}</p>
+        <p style="margin-top:8px;">${r.description || ''}</p>
       </div>
-      <div>${escapeHtml(r.description || '')}</div>
-      <div class="actions">
-        <button class="btn-secondary" onclick="openRequestDetails('${String(r.id).replace(/'/g, "\\'")}')">Voir / modifier</button>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:140px;">
+        <span class="badge ${badgeClass(r.status)}">${r.status || ''}</span>
+        <span class="badge">${r.priority || ''}</span>
       </div>
-    </article>
+    </div>
   `).join('');
 }
 
-async function loadNotes(requestId) {
-  if (!sb()?.from || !requestId) return [];
+async function loadNotesForIntervention(interventionId) {
+  let data = [];
+  let error = null;
 
-  const queries = [
-    sb().from('intervention_notes').select('*').eq('intervention_id', requestId).order('created_at', { ascending: false }),
-    sb().from('notes').select('*').eq('intervention_id', requestId).order('created_at', { ascending: false })
+  const tryTables = [
+    { table: 'intervention_notes', select: '*' },
+    { table: 'notes_intervention', select: '*' },
+    { table: 'notes', select: '*' }
   ];
 
-  for (const promise of queries) {
-    try {
-      const { data, error } = await promise;
-      if (!error && Array.isArray(data)) return data;
-    } catch (_) {}
+  for (const item of tryTables) {
+    const res = await sb().from(item.table).select(item.select).eq('intervention_id', interventionId).order('created_at', { ascending: false });
+    if (!res.error) {
+      data = res.data || [];
+      error = null;
+      break;
+    }
+    error = res.error;
   }
-  return [];
+
+  return { data, error };
 }
 
-function renderNotesHtml(notes) {
-  if (!notes?.length) return '<div class="empty">Aucune note pour cette intervention.</div>';
-  return `<div class="notes-list">${notes.map(n => `
-    <div class="note-item">
-      <div class="note-meta">${escapeHtml(n.auteur || n.author || n.created_by || 'Utilisateur')} · ${escapeHtml(n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : '')}</div>
-      <div>${escapeHtml(n.note || n.contenu || n.content || '')}</div>
+function renderNotes(notes) {
+  if (!notes?.length) return '<p class="meta">Aucune note.</p>';
+  return notes.map(n => `
+    <div class="detail-box" style="margin-top:10px;">
+      <small>${n.auteur || n.author || 'Utilisateur'} · ${n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : ''}</small>
+      <p style="margin-top:6px;">${n.note || n.contenu || n.content || ''}</p>
     </div>
-  `).join('')}</div>`;
+  `).join('');
 }
 
-function openModal() {
-  const modal = document.getElementById('detailsModal');
-  if (!modal) return;
-  modal.classList.add('active');
-  modal.setAttribute('aria-hidden', 'false');
-}
+async function openDetails(id) {
+  const r = requests.find(x => String(x.id) === String(id));
+  if (!r || !modalBody) return;
 
-function closeModal() {
-  const modal = document.getElementById('detailsModal');
-  if (!modal) return;
-  modal.classList.remove('active');
-  modal.setAttribute('aria-hidden', 'true');
-}
-
-async function openRequestDetails(requestId) {
-  selectedRequestId = requestId;
-  const r = requests.find(x => String(x.id) === String(requestId));
-  if (!r) return;
-
-  const modalTitle = document.getElementById('modalTitle');
-  const modalSubtitle = document.getElementById('modalSubtitle');
-  const modalBody = document.getElementById('modalBody');
-  if (!modalBody) return;
-
-  modalTitle.textContent = `${r.code || ''} — ${r.equipment || ''}`;
-  modalSubtitle.textContent = `Demandeur : ${r.name || '-'} · Rôle : ${roleName(currentProfile?.role)} · Créé : ${r.createdAt || '-'}`;
-
-  const notes = await loadNotes(requestId);
-  notesByRequest[requestId] = notes;
+  const notesResult = await loadNotesForIntervention(id);
+  const notesHtml = renderNotes(notesResult.data);
 
   modalBody.innerHTML = `
-    <div class="section">
-      <h3>Informations</h3>
-      <div class="grid-2">
-        <div><strong>Département :</strong> ${escapeHtml(r.department || '-')}</div>
-        <div><strong>Site :</strong> ${escapeHtml(r.site || '-')}</div>
-        <div><strong>Équipement :</strong> ${escapeHtml(r.equipment || '-')}</div>
-        <div><strong>Matériel :</strong> ${escapeHtml(r.material || '-')}</div>
-        <div><strong>Technicien actuel :</strong> ${escapeHtml(r.technicienNom || 'Aucun')}</div>
-        <div><strong>Priorité :</strong> ${escapeHtml(r.priority || '-')}</div>
-      </div>
-      <div style="margin-top:12px;"><strong>Description :</strong><br>${escapeHtml(r.description || '-')}</div>
+    <h2>${r.code || ''} — ${r.equipment || ''}</h2>
+    <p class="meta">${r.description || ''}</p>
+
+    <div class="detail-grid">
+      <div class="detail-box"><strong>Demandeur</strong><p>${r.name || '-'}</p></div>
+      <div class="detail-box"><strong>Département</strong><p>${r.department || '-'}</p></div>
+      <div class="detail-box"><strong>Site</strong><p>${r.site || '-'}</p></div>
+      <div class="detail-box"><strong>Matériel</strong><p>${r.material || '-'}</p></div>
+      <div class="detail-box"><strong>Priorité</strong><p>${r.priority || '-'}</p></div>
+      <div class="detail-box"><strong>Créé le</strong><p>${r.createdAt || '-'}</p></div>
     </div>
 
-    <div class="section">
-      <h3>Mise à jour</h3>
-      <div class="grid-2">
-        <div class="field">
-          <label for="detailStatus">Statut</label>
-          <select id="detailStatus" ${canEditRequest() ? '' : 'disabled'}>
-            <option value="NOUVEAU" ${r.status === 'NOUVEAU' ? 'selected' : ''}>Nouveau</option>
-            <option value="EN COURS" ${r.status === 'EN COURS' ? 'selected' : ''}>En cours</option>
-            <option value="EN ATTENTE" ${r.status === 'EN ATTENTE' ? 'selected' : ''}>En attente</option>
-            <option value="TERMINE" ${r.status === 'TERMINE' ? 'selected' : ''}>Terminé</option>
-            <option value="ANNULE" ${r.status === 'ANNULE' ? 'selected' : ''}>Annulé</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="detailTechnicien">Technicien</label>
-          <select id="detailTechnicien" data-technicien-select data-selected="${escapeHtml(r.technicienId || '')}" ${canEditRequest() ? '' : 'disabled'}>
-            <option value="">Chargement...</option>
-          </select>
-        </div>
-      </div>
-      <div class="actions">
-        <button class="btn-primary" id="saveRequestBtn" ${canEditRequest() ? '' : 'disabled'}>Enregistrer les modifications</button>
-      </div>
-    </div>
-
-    <div class="section">
-      <h3>Ajouter une note</h3>
+    <div class="detail-grid">
       <div class="field">
-        <label for="newNoteText">Note</label>
-        <textarea id="newNoteText" rows="4" placeholder="Écrire une note de suivi..." ${canEditRequest() ? '' : 'disabled'}></textarea>
+        <label for="modalTechnicienSelect">Technicien</label>
+        <select id="modalTechnicienSelect">${renderTechniciansOptions(r.technicienId)}</select>
       </div>
-      <div class="actions">
-        <button class="btn-primary" id="addNoteBtn" ${canEditRequest() ? '' : 'disabled'}>Ajouter la note</button>
+      <div class="field">
+        <label for="modalStatusSelect">Statut</label>
+        <select id="modalStatusSelect">
+          <option value="NOUVEAU" ${r.status === 'NOUVEAU' ? 'selected' : ''}>Nouveau</option>
+          <option value="EN COURS" ${r.status === 'EN COURS' ? 'selected' : ''}>En cours</option>
+          <option value="EN ATTENTE" ${r.status === 'EN ATTENTE' ? 'selected' : ''}>En attente</option>
+          <option value="TERMINE" ${r.status === 'TERMINE' ? 'selected' : ''}>Terminé</option>
+          <option value="ANNULE" ${r.status === 'ANNULE' ? 'selected' : ''}>Annulé</option>
+        </select>
       </div>
     </div>
 
-    <div class="section">
-      <h3>Historique des notes</h3>
-      <div id="notesContainer">${renderNotesHtml(notes)}</div>
+    <div class="action-row">
+      <button class="primary" onclick="saveDetails('${r.id}')">Enregistrer</button>
     </div>
+
+    <h3 style="margin-top:18px;">Ajouter une note</h3>
+    <textarea id="noteInput" class="note-box" placeholder="Écrire une note..."></textarea>
+    <div class="action-row">
+      <button class="secondary" onclick="addNote('${r.id}')">Ajouter la note</button>
+    </div>
+
+    <h3 style="margin-top:18px;">Historique des notes</h3>
+    <div id="notesList">${notesHtml}</div>
   `;
 
-  await loadTechnicians();
-
-  document.getElementById('saveRequestBtn')?.addEventListener('click', async () => {
-    await saveRequestChanges(requestId);
-  });
-
-  document.getElementById('addNoteBtn')?.addEventListener('click', async () => {
-    await addRequestNote(requestId);
-  });
-
-  openModal();
+  if (typeof detailsModal.showModal === 'function') detailsModal.showModal();
 }
 
-async function saveRequestChanges(requestId) {
-  if (!canEditRequest()) return;
-  const status = document.getElementById('detailStatus')?.value || null;
-  const technicienId = document.getElementById('detailTechnicien')?.value || null;
-  if (!sb()?.from) return;
+async function saveDetails(id) {
+  const status = document.getElementById('modalStatusSelect')?.value || null;
+  const technicienId = document.getElementById('modalTechnicienSelect')?.value || null;
 
-  const { error } = await sb()
-    .from('interventions')
-    .update({ etat: status, technicien_id: technicienId || null })
-    .eq('id', requestId);
+  const { error } = await sb().from('interventions').update({
+    etat: status,
+    technicien_id: technicienId || null
+  }).eq('id', id);
 
   if (error) {
-    alert('Erreur mise à jour : ' + error.message);
+    alert('Erreur modification : ' + error.message);
     return;
   }
 
-  const item = requests.find(x => String(x.id) === String(requestId));
-  if (item) {
-    item.status = status;
-    item.technicienId = technicienId || null;
-    item.technicienNom = technicians.find(t => String(t.id) === String(technicienId))?.nom || '';
-  }
-
-  renderDashboard();
-  renderRequests();
-  await openRequestDetails(requestId);
+  await loadRequests();
+  await openDetails(id);
 }
 
-async function addRequestNote(requestId) {
-  if (!canEditRequest()) return;
-  const textarea = document.getElementById('newNoteText');
-  const text = textarea?.value?.trim();
-  if (!text) {
-    alert('Veuillez saisir une note.');
-    return;
+async function addNote(id) {
+  const note = document.getElementById('noteInput')?.value.trim();
+  if (!note) return alert('Veuillez saisir une note');
+
+  const payload = {
+    intervention_id: id,
+    note,
+    auteur: currentUser?.email || 'Utilisateur'
+  };
+
+  let result = await sb().from('intervention_notes').insert(payload);
+  if (result.error) {
+    result = await sb().from('notes_intervention').insert(payload);
   }
-  if (!sb()?.from) return;
-
-  const payloads = [
-    {
-      table: 'intervention_notes',
-      data: {
-        intervention_id: requestId,
-        note: text,
-        auteur: currentUser?.email || currentProfile?.email || 'Utilisateur'
-      }
-    },
-    {
-      table: 'notes',
-      data: {
-        intervention_id: requestId,
-        contenu: text,
-        auteur: currentUser?.email || currentProfile?.email || 'Utilisateur'
-      }
-    }
-  ];
-
-  let saved = false;
-  let lastError = null;
-
-  for (const entry of payloads) {
-    try {
-      const { error } = await sb().from(entry.table).insert(entry.data);
-      if (!error) {
-        saved = true;
-        break;
-      }
-      lastError = error;
-    } catch (err) {
-      lastError = err;
-    }
+  if (result.error) {
+    result = await sb().from('notes').insert({ intervention_id: id, contenu: note, auteur: currentUser?.email || 'Utilisateur' });
   }
 
-  if (!saved) {
-    alert('Erreur ajout note : ' + (lastError?.message || 'table de notes introuvable'));
+  if (result.error) {
+    alert('Erreur ajout note : ' + result.error.message);
     return;
   }
 
-  textarea.value = '';
-  const notes = await loadNotes(requestId);
-  notesByRequest[requestId] = notes;
-  const notesContainer = document.getElementById('notesContainer');
-  if (notesContainer) notesContainer.innerHTML = renderNotesHtml(notes);
+  await openDetails(id);
 }
 
-function bindRequestsPageEvents() {
+function bindEvents() {
   document.getElementById('searchInput')?.addEventListener('input', renderRequests);
   document.getElementById('statusFilter')?.addEventListener('change', renderRequests);
   document.getElementById('priorityFilter')?.addEventListener('change', renderRequests);
-  document.getElementById('refreshBtn')?.addEventListener('click', async () => {
-    await loadRequests();
-  });
-  document.getElementById('closeModalBtn')?.addEventListener('click', closeModal);
-  document.getElementById('detailsModal')?.addEventListener('click', e => {
-    if (e.target.id === 'detailsModal') closeModal();
-  });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeModal();
+  document.getElementById('closeModalBtn')?.addEventListener('click', () => detailsModal?.close());
+  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
+    await sb().auth.signOut();
+    location.href = 'index.html';
   });
 }
 
-async function initRequestsPage() {
-  bindRequestsPageEvents();
+async function init() {
+  bindEvents();
   await ensureAuth();
   if (currentUser?.id) await loadProfile(currentUser.id);
   await loadTechnicians();
   await loadRequests();
 }
 
-async function initDashboardPage() {
-  await ensureAuth();
-  if (currentUser?.id) await loadProfile(currentUser.id);
-  await loadRequests();
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-  const p = page();
-  if (p === 'requests') await initRequestsPage();
-  else if (p === 'dashboard') await initDashboardPage();
-});
-
-window.openRequestDetails = openRequestDetails;
-window.closeModal = closeModal;
-
+document.addEventListener('DOMContentLoaded', init);
+window.openDetails = openDetails;
+window.saveDetails = saveDetails;
+window.addNote = addNote;
