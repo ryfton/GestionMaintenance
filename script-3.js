@@ -208,12 +208,10 @@ function bindNewRequest() {
 }
 
 function openDetails(id) {
-  const modal = document.getElementById('detailsModal');
-  const modalBody = document.getElementById('modalBody');
   const r = requests.find(x => x.id === id);
-  if (!r || !modal || !modalBody) return;
+  if (!r) return;
+
   modalBody.innerHTML = `
-    <button class="close-btn" id="closeModalBtn" type="button">×</button>
     <div class="badge ${badgeClass(r.status)}">${r.status}</div>
     <h2 style="margin-top:10px">${r.code} — ${r.equipment}</h2>
     <div class="detail-grid">
@@ -225,9 +223,42 @@ function openDetails(id) {
       <div class="detail-box"><strong>Matériel</strong><div>${r.material || 'Aucun renseigné'}</div></div>
       <div class="detail-box" style="grid-column:1/-1"><strong>Description</strong><div style="margin-top:6px">${r.description}</div></div>
     </div>
+
+    <div class="action-row">
+      <button class="status-btn" data-action="take">Prendre en charge</button>
+      <button class="status-btn" data-status="NOUVEAU">Nouveau</button>
+      <button class="status-btn" data-status="EN COURS">En cours</button>
+      <button class="status-btn" data-status="EN ATTENTE">En attente</button>
+      <button class="status-btn" data-status="TERMINE">Terminé</button>
+      <button class="status-btn" data-status="ANNULE">Annulé</button>
+    </div>
+
+    <div style="margin-top:16px">
+      <label for="noteText"><strong>Ajouter une note</strong></label>
+      <textarea id="noteText" class="note-box" placeholder="Ajouter un commentaire de suivi..."></textarea>
+      <div class="action-row">
+        <button class="small-btn" id="saveNoteBtn">Enregistrer la note</button>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <label><strong>Assigner un technicien</strong></label>
+      <div id="techSelectWrap"></div>
+      <div class="action-row">
+        <button class="small-btn" id="saveTechBtn">Assigner</button>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <strong>Historique</strong>
+      <div id="historyBox" style="margin-top:10px"></div>
+    </div>
   `;
+
+  modal.dataset.id = id;
   modal.showModal();
-  modalBody.querySelector('#closeModalBtn')?.addEventListener('click', () => modal.close());
+  loadHistory(id);
+  loadTechSelectInModal(r.technicienId || '');
 }
 
 function bindRequests() {
