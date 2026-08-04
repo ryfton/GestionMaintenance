@@ -7,9 +7,6 @@
   <link rel="stylesheet" href="style-2.css" />
 </head>
 <body>
-  <div class="bg-deco deco-left"></div>
-  <div class="bg-deco deco-right"></div>
-
   <header class="topbar">
     <div class="brand">
       <div class="logo">GM</div>
@@ -22,21 +19,16 @@
       <a href="dashboard.html">Tableau de bord</a>
       <a href="requests.html">Demandes</a>
       <a href="new-request.html">Nouvelle demande</a>
-      <button id="logoutBtn" class="ghost">Déconnexion</button>
     </nav>
   </header>
 
   <main class="container">
     <section class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
-        <div>
-          <h2>Liste des interventions</h2>
-          <p class="meta" id="statsText">Chargement...</p>
-        </div>
-      </div>
+      <h2>Demandes</h2>
+      <p id="statsText" class="meta">Chargement...</p>
 
-      <div class="toolbar topbar" style="position:static;padding:12px;">
-        <input id="searchInput" type="text" placeholder="Rechercher une intervention..." />
+      <div class="toolbar">
+        <input id="searchInput" type="text" placeholder="Rechercher..." />
         <select id="statusFilter">
           <option value="">Tous les statuts</option>
           <option value="NOUVEAU">Nouveau</option>
@@ -60,7 +52,7 @@
 
   <dialog id="detailsModal" class="modal">
     <div class="modal-content">
-      <button class="close-btn" id="closeModalBtn" aria-label="Fermer">×</button>
+      <button id="closeModalBtn" class="close-btn">×</button>
       <div id="modalBody"></div>
     </div>
   </dialog>
@@ -74,3 +66,4 @@
   <script src="script-3.js"></script>
 </body>
 </html>
+
