@@ -4,9 +4,6 @@ let selectedPriority = 'Basse';
 let requests = [];
 let technicians = [];
 
-const detailsModal = document.getElementById('detailsModal');
-const modalBody = document.getElementById('modalBody');
-
 function sb() {
   return window.supabaseClient;
 }
@@ -37,17 +34,29 @@ function roleName(r) {
   })[r] || 'Utilisateur';
 }
 
-function renderTechniciansOptions(selected = '') {
-  return '<option value="">Aucun</option>' + technicians.map(t =>
-    `<option value="${t.id}" ${String(t.id) === String(selected) ? 'selected' : ''}>${t.nom}</option>`
-  ).join('');
-}
-
 async function ensureAuth() {
   const { data } = await sb().auth.getSession();
   currentUser = data.session?.user || null;
   if (!currentUser && page() !== 'login') location.href = 'index.html';
   return !!currentUser;
+}
+
+function showLoginState() {
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen = document.getElementById('appScreen');
+  const roleLabel = document.getElementById('roleLabel');
+  if (loginScreen) loginScreen.classList.add('active');
+  if (appScreen) appScreen.classList.remove('active');
+  if (roleLabel) roleLabel.textContent = 'ACCUEIL';
+}
+
+function showAppState() {
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen = document.getElementById('appScreen');
+  const roleLabel = document.getElementById('roleLabel');
+  if (loginScreen) loginScreen.classList.remove('active');
+  if (appScreen) appScreen.classList.add('active');
+  if (roleLabel) roleLabel.textContent = `Connecté : ${currentUser?.email || ''}`;
 }
 
 async function loadProfile(userId) {
@@ -56,21 +65,21 @@ async function loadProfile(userId) {
 }
 
 async function loadTechnicians() {
+  const sel = document.getElementById('technicienSelect');
   const { data, error } = await sb().from('techniciens').select('*').eq('actif', true).order('nom', { ascending: true });
   technicians = error ? [] : (data || []);
+  if (sel) {
+    sel.innerHTML = '<option value="">Aucun</option>' + technicians.map(t => `<option value="${t.id}">${t.nom}</option>`).join('');
+  }
 }
 
 async function loadRequests() {
   const list = document.getElementById('requestList');
   if (!list) return;
 
-  const { data, error } = await sb()
-    .from('interventions')
-    .select('*, techniciens(id, nom)')
-    .order('created_at', { ascending: false });
-
+  const { data, error } = await sb().from('interventions').select('*, techniciens(id, nom)').order('created_at', { ascending: false });
   if (error) {
-    list.innerHTML = `<div class="card"><p>Erreur chargement interventions : ${error.message}</p></div>`;
+    alert('Erreur chargement interventions : ' + error.message);
     return;
   }
 
@@ -111,15 +120,13 @@ function renderDashboard() {
   if (doneCount) doneCount.textContent = done;
   if (userRoleText) userRoleText.textContent = roleName(currentProfile?.role);
   statsText.textContent = `${total} total · ${nouveau} nouveau · ${cours} en cours`;
-  const roleLabel = document.getElementById('roleLabel');
-  if (roleLabel) roleLabel.textContent = currentUser ? `Connecté : ${currentUser.email}` : 'ACCUEIL';
 }
 
 function renderRequests() {
-  const requestList = document.getElementById('requestList');
-  if (!requestList) return;
+  const list = document.getElementById('requestList');
+  if (!list) return;
 
-  const q = document.getElementById('searchInput')?.value.toLowerCase() || '';
+  const q = document.getElementById('searchInput')?.value?.toLowerCase() || '';
   const status = document.getElementById('statusFilter')?.value || '';
   const priority = document.getElementById('priorityFilter')?.value || '';
 
@@ -129,13 +136,8 @@ function renderRequests() {
     (!priority || r.priority === priority)
   );
 
-  if (!filtered.length) {
-    requestList.innerHTML = '<div class="card"><p>Aucune intervention trouvée.</p></div>';
-    return;
-  }
-
-  requestList.innerHTML = filtered.map(r => `
-    <div class="request-card" onclick="openDetails('${r.id}')">
+  list.innerHTML = filtered.map(r => `
+    <div class="request-card" data-id="${r.id}">
       <div>
         <strong>${r.code || ''} — ${r.equipment || ''}</strong>
         <p class="meta">${r.name || ''} · ${r.department || ''} · ${r.site || ''}</p>
@@ -147,34 +149,30 @@ function renderRequests() {
         <span class="badge">${r.priority || ''}</span>
       </div>
     </div>
-  `).join('');
+  `).join('') || '<div class="card">Aucune intervention trouvée.</div>';
+
+  list.querySelectorAll('.request-card').forEach(card => {
+    card.addEventListener('click', () => openRequestDetails(card.dataset.id));
+  });
 }
 
-async function loadNotesForIntervention(interventionId) {
-  let data = [];
-  let error = null;
+function renderTechnicianOptionsForModal(selected = '') {
+  return '<option value="">Aucun</option>' + technicians.map(t =>
+    `<option value="${t.id}" ${String(t.id) === String(selected) ? 'selected' : ''}>${t.nom}</option>`
+  ).join('');
+}
 
-  const tryTables = [
-    { table: 'intervention_notes', select: '*' },
-    { table: 'notes_intervention', select: '*' },
-    { table: 'notes', select: '*' }
-  ];
-
-  for (const item of tryTables) {
-    const res = await sb().from(item.table).select(item.select).eq('intervention_id', interventionId).order('created_at', { ascending: false });
-    if (!res.error) {
-      data = res.data || [];
-      error = null;
-      break;
-    }
-    error = res.error;
+async function loadNotes(requestId) {
+  const tests = ['intervention_notes', 'notes_intervention', 'notes'];
+  for (const table of tests) {
+    const { data, error } = await sb().from(table).select('*').eq('intervention_id', requestId).order('created_at', { ascending: false });
+    if (!error) return data || [];
   }
-
-  return { data, error };
+  return [];
 }
 
 function renderNotes(notes) {
-  if (!notes?.length) return '<p class="meta">Aucune note.</p>';
+  if (!notes.length) return '<p class="meta">Aucune note.</p>';
   return notes.map(n => `
     <div class="detail-box" style="margin-top:10px;">
       <small>${n.auteur || n.author || 'Utilisateur'} · ${n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : ''}</small>
@@ -183,12 +181,13 @@ function renderNotes(notes) {
   `).join('');
 }
 
-async function openDetails(id) {
+async function openRequestDetails(id) {
+  const modal = document.getElementById('detailsModal');
+  const modalBody = document.getElementById('modalBody');
   const r = requests.find(x => String(x.id) === String(id));
-  if (!r || !modalBody) return;
+  if (!modal || !modalBody || !r) return;
 
-  const notesResult = await loadNotesForIntervention(id);
-  const notesHtml = renderNotes(notesResult.data);
+  const notes = await loadNotes(id);
 
   modalBody.innerHTML = `
     <h2>${r.code || ''} — ${r.equipment || ''}</h2>
@@ -206,7 +205,7 @@ async function openDetails(id) {
     <div class="detail-grid">
       <div class="field">
         <label for="modalTechnicienSelect">Technicien</label>
-        <select id="modalTechnicienSelect">${renderTechniciansOptions(r.technicienId)}</select>
+        <select id="modalTechnicienSelect">${renderTechnicianOptionsForModal(r.technicienId)}</select>
       </div>
       <div class="field">
         <label for="modalStatusSelect">Statut</label>
@@ -221,23 +220,26 @@ async function openDetails(id) {
     </div>
 
     <div class="action-row">
-      <button class="primary" onclick="saveDetails('${r.id}')">Enregistrer</button>
+      <button class="primary" id="saveDetailsBtn">Enregistrer</button>
     </div>
 
     <h3 style="margin-top:18px;">Ajouter une note</h3>
     <textarea id="noteInput" class="note-box" placeholder="Écrire une note..."></textarea>
     <div class="action-row">
-      <button class="secondary" onclick="addNote('${r.id}')">Ajouter la note</button>
+      <button class="secondary" id="addNoteBtn">Ajouter la note</button>
     </div>
 
     <h3 style="margin-top:18px;">Historique des notes</h3>
-    <div id="notesList">${notesHtml}</div>
+    <div id="notesList">${renderNotes(notes)}</div>
   `;
 
-  if (typeof detailsModal.showModal === 'function') detailsModal.showModal();
+  document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
+  document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
+
+  if (typeof modal.showModal === 'function') modal.showModal();
 }
 
-async function saveDetails(id) {
+async function saveRequestDetails(id) {
   const status = document.getElementById('modalStatusSelect')?.value || null;
   const technicienId = document.getElementById('modalTechnicienSelect')?.value || null;
 
@@ -252,25 +254,36 @@ async function saveDetails(id) {
   }
 
   await loadRequests();
-  await openDetails(id);
+  await openRequestDetails(id);
 }
 
-async function addNote(id) {
+async function addRequestNote(id) {
   const note = document.getElementById('noteInput')?.value.trim();
-  if (!note) return alert('Veuillez saisir une note');
+  if (!note) {
+    alert('Veuillez saisir une note');
+    return;
+  }
 
-  const payload = {
+  let result = await sb().from('intervention_notes').insert({
     intervention_id: id,
     note,
     auteur: currentUser?.email || 'Utilisateur'
-  };
+  });
 
-  let result = await sb().from('intervention_notes').insert(payload);
   if (result.error) {
-    result = await sb().from('notes_intervention').insert(payload);
+    result = await sb().from('notes_intervention').insert({
+      intervention_id: id,
+      note,
+      auteur: currentUser?.email || 'Utilisateur'
+    });
   }
+
   if (result.error) {
-    result = await sb().from('notes').insert({ intervention_id: id, contenu: note, auteur: currentUser?.email || 'Utilisateur' });
+    result = await sb().from('notes').insert({
+      intervention_id: id,
+      contenu: note,
+      auteur: currentUser?.email || 'Utilisateur'
+    });
   }
 
   if (result.error) {
@@ -278,29 +291,28 @@ async function addNote(id) {
     return;
   }
 
-  await openDetails(id);
+  await openRequestDetails(id);
 }
 
-function bindEvents() {
+function bindRequestsPage() {
   document.getElementById('searchInput')?.addEventListener('input', renderRequests);
   document.getElementById('statusFilter')?.addEventListener('change', renderRequests);
   document.getElementById('priorityFilter')?.addEventListener('change', renderRequests);
-  document.getElementById('closeModalBtn')?.addEventListener('click', () => detailsModal?.close());
-  document.getElementById('logoutBtn')?.addEventListener('click', async () => {
-    await sb().auth.signOut();
-    location.href = 'index.html';
+  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
+    document.getElementById('detailsModal')?.close();
   });
 }
 
-async function init() {
-  bindEvents();
+async function initRequestsPage() {
+  bindRequestsPage();
   await ensureAuth();
   if (currentUser?.id) await loadProfile(currentUser.id);
   await loadTechnicians();
   await loadRequests();
 }
 
-document.addEventListener('DOMContentLoaded', init);
-window.openDetails = openDetails;
-window.saveDetails = saveDetails;
-window.addNote = addNote;
+document.addEventListener('DOMContentLoaded', async () => {
+  if (page() === 'requests') {
+    await initRequestsPage();
+  }
+});
