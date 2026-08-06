@@ -146,7 +146,7 @@ async function login() {
   showScreen('app');
   await refreshAll();
 }
-
+//test commit
 async function logout() {
   await sb().auth.signOut();
   currentUser = null;
