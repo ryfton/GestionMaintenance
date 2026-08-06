@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 
-// ---------- Auth / Login additions ----------
+
 // Ajoute la gestion du bouton "Se connecter" et la vérification de session
 
 async function login() {
