@@ -316,3 +316,4 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initRequestsPage();
   }
 });
+
