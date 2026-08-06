@@ -317,3 +317,49 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
+
+// ---------- Auth / Login additions ----------
+// Ajoute la gestion du bouton "Se connecter" et la vérification de session
+
+async function login() {
+  const email = document.getElementById('email')?.value.trim() || '';
+  const password = document.getElementById('password')?.value.trim() || '';
+
+  if (!email || !password) {
+    return alert('Veuillez saisir email et mot de passe');
+  }
+
+  const { data, error } = await sb().auth.signInWithPassword({ email, password });
+  if (error) return alert('Connexion refusée : ' + error.message);
+
+  currentUser = data.user;
+  await loadProfile(currentUser.id);
+  showAppState();
+
+  // Par défaut, rediriger vers le tableau de bord après connexion
+  if (!location.pathname.endsWith('dashboard.html')) {
+    location.href = 'dashboard.html';
+  }
+}
+
+// Attacher l'écouteur si le bouton existe sur la page
+if (document.getElementById('loginBtn')) {
+  document.getElementById('loginBtn').addEventListener('click', login);
+}
+
+// Vérifier la session existante au chargement de n'importe quelle page
+sb().auth.getSession().then(async ({ data }) => {
+  if (data?.session) {
+    currentUser = data.session.user;
+    await loadProfile(currentUser.id);
+    // si on est sur la page de connexion, rediriger vers dashboard
+    if (location.pathname === '/' || location.pathname.endsWith('index.html')) {
+      location.href = 'dashboard.html';
+    }
+  } else {
+    // si on est sur index.html, afficher état login
+    if (location.pathname === '/' || location.pathname.endsWith('index.html')) {
+      showLoginState();
+    }
+  }
+});
