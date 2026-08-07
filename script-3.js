@@ -162,21 +162,28 @@ function renderTechnicianOptionsForModal(selected = '') {
   ).join('');
 }
 
+// Normalized loadNotes: prefer notes_interventions and map fields
 async function loadNotes(requestId) {
-  const tests = ['intervention_notes', 'notes_intervention', 'notes'];
+  const tests = ['notes_interventions','intervention_notes','notes_intervention','notes'];
   for (const table of tests) {
     const { data, error } = await sb().from(table).select('*').eq('intervention_id', requestId).order('created_at', { ascending: false });
-    if (!error) return data || [];
+    if (!error && data) {
+      return (data || []).map(n => ({
+        note: n.note || n.contenu || n.content || '',
+        auteur: n.created_by || n.auteur || n.author || 'Utilisateur',
+        created_at: n.created_at || n.createdAt || null
+      }));
+    }
   }
   return [];
 }
 
 function renderNotes(notes) {
-  if (!notes.length) return '<p class="meta">Aucune note.</p>';
+  if (!notes || !notes.length) return '<p class="meta">Aucune note.</p>';
   return notes.map(n => `
     <div class="detail-box" style="margin-top:10px;">
-      <small>${n.auteur || n.author || 'Utilisateur'} · ${n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : ''}</small>
-      <p style="margin-top:6px;">${n.note || n.contenu || n.content || ''}</p>
+      <small>${n.auteur || 'Utilisateur'} · ${n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : ''}</small>
+      <p style="margin-top:6px;">${n.note || ''}</p>
     </div>
   `).join('');
 }
@@ -257,6 +264,7 @@ async function saveRequestDetails(id) {
   await openRequestDetails(id);
 }
 
+// Simplified addRequestNote: insert into notes_interventions only
 async function addRequestNote(id) {
   const note = document.getElementById('noteInput')?.value.trim();
   if (!note) {
@@ -264,33 +272,20 @@ async function addRequestNote(id) {
     return;
   }
 
-  let result = await sb().from('intervention_notes').insert({
+  const payload = {
     intervention_id: id,
     note,
-    auteur: currentUser?.email || 'Utilisateur'
-  });
+    created_by: currentUser?.email || 'Utilisateur'
+  };
 
-  if (result.error) {
-    result = await sb().from('notes_intervention').insert({
-      intervention_id: id,
-      note,
-      auteur: currentUser?.email || 'Utilisateur'
-    });
-  }
+  const { data, error } = await sb().from('notes_interventions').insert([payload]).select().single();
 
-  if (result.error) {
-    result = await sb().from('notes').insert({
-      intervention_id: id,
-      contenu: note,
-      auteur: currentUser?.email || 'Utilisateur'
-    });
-  }
-
-  if (result.error) {
-    alert('Erreur ajout note : ' + result.error.message);
+  if (error) {
+    alert('Erreur ajout note : ' + error.message);
     return;
   }
 
+  document.getElementById('noteInput').value = '';
   await openRequestDetails(id);
 }
 
@@ -311,9 +306,18 @@ async function initRequestsPage() {
   await loadRequests();
 }
 
+// DOM ready: ensure dashboard loads requests as well
 document.addEventListener('DOMContentLoaded', async () => {
   if (page() === 'requests') {
     await initRequestsPage();
+  } else if (page() === 'dashboard') {
+    await ensureAuth();
+    if (currentUser?.id) await loadProfile(currentUser.id);
+    await loadTechnicians();
+    await loadRequests();
+  } else if (page() === 'new-request') {
+    await ensureAuth();
+    await loadTechnicians();
   }
 });
 
