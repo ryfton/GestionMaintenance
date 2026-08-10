@@ -180,12 +180,27 @@ function renderRequests() {
       <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:140px;">
         <span class="badge ${badgeClass(r.status)}">${r.status || ''}</span>
         <span class="badge">${r.priority || ''}</span>
+        <button class="small-btn archive-btn" data-id="${r.id}" ${r.archived ? 'disabled' : (canArchive(r.status) ? '' : 'disabled')} style="margin-top:8px;">Archiver</button>
       </div>
     </div>
   `).join('') || '<div class="card">Aucune intervention trouvée.</div>';
 
   list.querySelectorAll('.request-card').forEach(card => {
     card.addEventListener('click', () => openRequestDetails(card.dataset.id));
+  });
+
+  // archive button handlers (stop propagation so modal doesn't open)
+  list.querySelectorAll('.archive-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const r = requests.find(x => String(x.id) === String(id));
+      if (!r) return alert('Intervention introuvable.');
+      if (r.archived) return alert('Déjà archivée.');
+      if (!canArchive(r.status)) return alert('Seules les interventions terminées ou annulées peuvent être archivées.');
+      btn.disabled = true;
+      await setArchiveState(id, true);
+    });
   });
 }
 
