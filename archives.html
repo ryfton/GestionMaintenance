@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Archives - Gestion Maintenance</title>
+  <link rel="stylesheet" href="style-2.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_YMqvlXionoIK50UPJXXEtw_e2t22Pkn";
+    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><div class="logo">GM</div><div><h1>Archives</h1></div></div>
+    <nav class="menu">
+      <a href="dashboard.html">Accueil</a>
+      <a href="requests.html">Demandes</a>
+      <a href="archives.html">Archives</a>
+      <a href="new-request.html">Nouvelle demande</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Interventions archivées</h2>
+      <div id="archiveList" class="request-list">Chargement...</div>
+    </section>
+  </main>
+
+  <dialog id="detailsModal" class="modal"><div class="modal-content"><button id="closeModalBtn" class="close-btn">×</button><div id="modalBody"></div></div></dialog>
+
+  <script src="script-3.js"></script>
+</body>
+</html>
