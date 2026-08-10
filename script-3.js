@@ -308,7 +308,37 @@ function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;')
 async function openRequestDetails(id) {
   const modal = document.getElementById('detailsModal');
   const modalBody = document.getElementById('modalBody');
-  const r = requests.find(x => String(x.id) === String(id));
+  // Try to find in cached requests first
+  let r = requests.find(x => String(x.id) === String(id));
+
+  // If not found (e.g., archived item), fetch directly from DB
+  if (!r) {
+    const { data: row, error } = await sb()
+      .from('interventions')
+      .select('*, techniciens(id, nom)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !row) return alert('Intervention introuvable.');
+    r = {
+      id: row.id,
+      code: row.code,
+      name: row.demandeur,
+      department: row.departement,
+      site: row.site,
+      equipment: row.equipement,
+      material: row.materiel,
+      priority: row.priorite,
+      description: row.description,
+      status: row.etat,
+      technicienId: row.technicien_id,
+      technicienNom: row.techniciens?.nom || '',
+      createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
+      archived: !!row.archived,
+      start_time: row.start_time || null,
+      end_time: row.end_time || null
+    };
+  }
+
   if (!modal || !modalBody || !r) return;
 
   const historyData = await loadHistory(id);
