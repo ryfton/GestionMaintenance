@@ -198,6 +198,8 @@ function renderRequests() {
       if (!r) return alert('Intervention introuvable.');
       if (r.archived) return alert('Déjà archivée.');
       if (!canArchive(r.status)) return alert('Seules les interventions terminées ou annulées peuvent être archivées.');
+      const ok = confirm('Confirmez-vous l\'archivage de cette intervention ? Cette action est irréversible.');
+      if (!ok) return;
       btn.disabled = true;
       await setArchiveState(id, true);
     });
@@ -313,6 +315,8 @@ async function openRequestDetails(id) {
   document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
   document.getElementById('archiveBtn')?.addEventListener('click', async () => {
+    const ok = confirm('Confirmez-vous l\'archivage de cette intervention ? Cette action est irréversible.');
+    if (!ok) return;
     const shouldArchive = true; // once archived cannot be undone
     await setArchiveState(id, shouldArchive);
   });
