@@ -82,6 +82,56 @@ async function loadTechnicians() {
   }
 }
 
+// --- Confirmation modal utility (styled) ---
+function ensureConfirmModal() {
+  if (document.getElementById('confirmModal')) return;
+  const d = document.createElement('dialog');
+  d.id = 'confirmModal';
+  d.className = 'modal';
+  d.innerHTML = `
+    <div class="modal-content">
+      <button class="close-btn" id="confirmCloseBtn">×</button>
+      <h3 id="confirmTitle">Confirmer</h3>
+      <p id="confirmMessage" class="meta" style="margin-top:10px;">Message</p>
+      <div style="margin-top:18px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="ghost" id="confirmCancel">Annuler</button>
+        <button class="primary" id="confirmOk">Confirmer</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(d);
+  d.querySelector('#confirmCloseBtn')?.addEventListener('click', () => d.close());
+  d.querySelector('#confirmCancel')?.addEventListener('click', () => d.close());
+}
+
+function showConfirm(message, title = 'Confirmez') {
+  return new Promise((resolve) => {
+    ensureConfirmModal();
+    const modal = document.getElementById('confirmModal');
+    modal.querySelector('#confirmTitle').textContent = title;
+    modal.querySelector('#confirmMessage').textContent = message;
+
+    function cleanup(result) {
+      modal.removeEventListener('close', onClose);
+      resolve(result);
+    }
+    function onClose() {
+      // if closed without pressing confirm -> false
+      cleanup(false);
+    }
+    function onOk(e) {
+      e.stopPropagation();
+      modal.close();
+      cleanup(true);
+    }
+
+    modal.addEventListener('close', onClose);
+    modal.querySelector('#confirmOk').addEventListener('click', onOk, { once: true });
+    // show modal
+    if (typeof modal.showModal === 'function') modal.showModal(); else modal.style.display = 'block';
+  });
+}
+
 // Load active (non-archived) requests
 async function loadRequests() {
   const list = document.getElementById('requestList');
@@ -198,7 +248,7 @@ function renderRequests() {
       if (!r) return alert('Intervention introuvable.');
       if (r.archived) return alert('Déjà archivée.');
       if (!canArchive(r.status)) return alert('Seules les interventions terminées ou annulées peuvent être archivées.');
-      const ok = confirm('Confirmez-vous l\'archivage de cette intervention ? Cette action est irréversible.');
+      const ok = await showConfirm("Confirmez-vous l'archivage de cette intervention ? Cette action est irréversible.");
       if (!ok) return;
       btn.disabled = true;
       await setArchiveState(id, true);
@@ -212,31 +262,48 @@ function renderTechnicianOptionsForModal(selected = '') {
   ).join('');
 }
 
-// Normalized loadNotes: prefer notes_interventions and map fields
-async function loadNotes(requestId) {
-  const tests = ['notes_interventions','intervention_notes','notes_intervention','notes'];
-  for (const table of tests) {
-    const { data, error } = await sb().from(table).select('*').eq('intervention_id', requestId).order('created_at', { ascending: false });
-    if (!error && data) {
-      return (data || []).map(n => ({
-        note: n.note || n.contenu || n.content || '',
-        auteur: n.created_by || n.auteur || n.author || 'Utilisateur',
-        created_at: n.created_at || n.createdAt || null
-      }));
-    }
-  }
-  return [];
+// Fetch notes + historique for an intervention
+async function loadHistory(id) {
+  const [notesRes, histRes] = await Promise.all([
+    sb().from('notes_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false }),
+    sb().from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false })
+  ]);
+  const notes = (notesRes.data || []).map(n => ({ note: n.note || n.contenu || '', auteur: n.created_by || n.auteur || 'Utilisateur', created_at: n.created_at || n.createdAt }));
+  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at || h.createdAt, changed_by: h.changed_by }));
+  return { notes, history };
 }
 
-function renderNotes(notes) {
-  if (!notes || !notes.length) return '<p class="meta">Aucune note.</p>';
-  return notes.map(n => `
-    <div class="detail-box" style="margin-top:10px;">
-      <small>${n.auteur || 'Utilisateur'} · ${n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : ''}</small>
-      <p style="margin-top:6px;">${n.note || ''}</p>
+function renderHistorySection(historyData) {
+  const { notes, history } = historyData || { notes: [], history: [] };
+  const notesHtml = notes.length ? notes.map(n => `
+    <div class="detail-box">
+      <small>${n.auteur} · ${n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : ''}</small>
+      <p style="margin-top:8px;">${escapeHtml(n.note)}</p>
     </div>
-  `).join('');
+  `).join('') : '<p class="meta">Aucune note.</p>';
+
+  const histHtml = history.length ? history.map(h => `
+    <div class="detail-box">
+      <small>${h.changed_by || 'Système'} · ${h.created_at ? new Date(h.created_at).toLocaleString('fr-FR') : ''}</small>
+      <p style="margin-top:8px;">${escapeHtml(h.note)} <br><strong>État:</strong> ${h.ancien_etat || '-'} → ${h.nouvel_etat || '-'}</p>
+    </div>
+  `).join('') : '<p class="meta">Aucun historique.</p>';
+
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+      <div>
+        <h3>Notes</h3>
+        ${notesHtml}
+      </div>
+      <div>
+        <h3>Historique</h3>
+        ${histHtml}
+      </div>
+    </div>
+  `;
 }
+
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 
 async function openRequestDetails(id) {
   const modal = document.getElementById('detailsModal');
@@ -244,18 +311,18 @@ async function openRequestDetails(id) {
   const r = requests.find(x => String(x.id) === String(id));
   if (!modal || !modalBody || !r) return;
 
-  const notes = await loadNotes(id);
+  const historyData = await loadHistory(id);
 
   modalBody.innerHTML = `
     <h2>${r.code || ''} — ${r.equipment || ''}</h2>
-    <p class="meta">${r.description || ''}</p>
+    <p class="meta">${escapeHtml(r.description || '')}</p>
 
     <div class="detail-grid">
-      <div class="detail-box"><strong>Demandeur</strong><p>${r.name || '-'}</p></div>
-      <div class="detail-box"><strong>Département</strong><p>${r.department || '-'}</p></div>
-      <div class="detail-box"><strong>Site</strong><p>${r.site || '-'}</p></div>
-      <div class="detail-box"><strong>Matériel</strong><p>${r.material || '-'}</p></div>
-      <div class="detail-box"><strong>Priorité</strong><p>${r.priority || '-'}</p></div>
+      <div class="detail-box"><strong>Demandeur</strong><p>${escapeHtml(r.name || '-')}</p></div>
+      <div class="detail-box"><strong>Département</strong><p>${escapeHtml(r.department || '-')}</p></div>
+      <div class="detail-box"><strong>Site</strong><p>${escapeHtml(r.site || '-')}</p></div>
+      <div class="detail-box"><strong>Matériel</strong><p>${escapeHtml(r.material || '-')}</p></div>
+      <div class="detail-box"><strong>Priorité</strong><p>${escapeHtml(r.priority || '-')}</p></div>
       <div class="detail-box"><strong>Créé le</strong><p>${r.createdAt || '-'}</p></div>
       <div class="detail-box"><strong>Heure début</strong><p>${formatDateTime(r.start_time)}</p></div>
       <div class="detail-box"><strong>Heure fin</strong><p>${formatDateTime(r.end_time)}</p></div>
@@ -290,8 +357,8 @@ async function openRequestDetails(id) {
       <button class="secondary" id="addNoteBtn">Ajouter la note</button>
     </div>
 
-    <h3 style="margin-top:18px;">Historique des notes</h3>
-    <div id="notesList">${renderNotes(notes)}</div>
+    <h3 style="margin-top:18px;">Historique & Notes</h3>
+    ${renderHistorySection(historyData)}
   `;
 
   // If archived -> readonly: disable inputs and hide save/archive buttons
@@ -315,7 +382,7 @@ async function openRequestDetails(id) {
   document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
   document.getElementById('archiveBtn')?.addEventListener('click', async () => {
-    const ok = confirm('Confirmez-vous l\'archivage de cette intervention ? Cette action est irréversible.');
+    const ok = await showConfirm("Confirmez-vous l'archivage de cette intervention ? Cette action est irréversible.");
     if (!ok) return;
     const shouldArchive = true; // once archived cannot be undone
     await setArchiveState(id, shouldArchive);
