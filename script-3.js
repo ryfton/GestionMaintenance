@@ -111,11 +111,29 @@ async function loadRequests() {
     technicienId: row.technicien_id,
     technicienNom: row.techniciens?.nom || '',
     createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
-    archived: !!row.archived
+    archived: !!row.archived,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null
   }));
 
   renderDashboard();
   renderRequests();
+}
+
+function formatDateTime(dt) {
+  if (!dt) return '-';
+  try { return new Date(dt).toLocaleString('fr-FR'); } catch (e) { return dt; }
+}
+
+function durationText(start, end) {
+  if (!start || !end) return '-';
+  const s = new Date(start);
+  const e = new Date(end);
+  const diff = Math.max(0, e - s);
+  const minutes = Math.round(diff / 60000);
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hrs ? `${hrs}h ${mins}m` : `${mins}m`;
 }
 
 function renderDashboard() {
@@ -222,6 +240,9 @@ async function openRequestDetails(id) {
       <div class="detail-box"><strong>Matériel</strong><p>${r.material || '-'}</p></div>
       <div class="detail-box"><strong>Priorité</strong><p>${r.priority || '-'}</p></div>
       <div class="detail-box"><strong>Créé le</strong><p>${r.createdAt || '-'}</p></div>
+      <div class="detail-box"><strong>Heure début</strong><p>${formatDateTime(r.start_time)}</p></div>
+      <div class="detail-box"><strong>Heure fin</strong><p>${formatDateTime(r.end_time)}</p></div>
+      <div class="detail-box"><strong>Durée</strong><p>${durationText(r.start_time, r.end_time)}</p></div>
     </div>
 
     <div class="detail-grid">
@@ -241,9 +262,9 @@ async function openRequestDetails(id) {
       </div>
     </div>
 
-    <div class="action-row">
+    <div class="action-row" id="actionRow">
       <button class="primary" id="saveDetailsBtn">Enregistrer</button>
-      <button class="ghost" id="archiveBtn">${r.archived ? 'Désarchiver' : 'Archiver'}</button>
+      <button class="ghost" id="archiveBtn">${r.archived ? 'Archivée' : 'Archiver'}</button>
     </div>
 
     <h3 style="margin-top:18px;">Ajouter une note</h3>
@@ -256,10 +277,28 @@ async function openRequestDetails(id) {
     <div id="notesList">${renderNotes(notes)}</div>
   `;
 
+  // If archived -> readonly: disable inputs and hide save/archive buttons
+  if (r.archived) {
+    document.getElementById('modalTechnicienSelect')?.setAttribute('disabled', 'disabled');
+    document.getElementById('modalStatusSelect')?.setAttribute('disabled', 'disabled');
+    document.getElementById('saveDetailsBtn')?.setAttribute('disabled', 'disabled');
+    document.getElementById('archiveBtn')?.setAttribute('disabled', 'disabled');
+    document.getElementById('addNoteBtn')?.setAttribute('disabled', 'disabled');
+    // show a notice
+    const ar = document.getElementById('actionRow');
+    if (ar) {
+      const p = document.createElement('div');
+      p.className = 'meta';
+      p.style.marginTop = '8px';
+      p.textContent = 'Cette intervention est archivée et est en lecture seule.';
+      ar.parentNode.insertBefore(p, ar.nextSibling);
+    }
+  }
+
   document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
   document.getElementById('archiveBtn')?.addEventListener('click', async () => {
-    const shouldArchive = !r.archived;
+    const shouldArchive = true; // once archived cannot be undone
     await setArchiveState(id, shouldArchive);
   });
 
@@ -267,13 +306,25 @@ async function openRequestDetails(id) {
 }
 
 async function saveRequestDetails(id) {
+  const r = requests.find(x => String(x.id) === String(id));
+  if (!r) return alert('Intervention introuvable.');
+  if (r.archived) return alert('Cette intervention est archivée et ne peut pas être modifiée.');
+
   const status = document.getElementById('modalStatusSelect')?.value || null;
   const technicienId = document.getElementById('modalTechnicienSelect')?.value || null;
 
-  const { error } = await sb().from('interventions').update({
-    etat: status,
-    technicien_id: technicienId || null
-  }).eq('id', id);
+  // prepare payload and manage start/end times
+  const payload = { etat: status, technicien_id: technicienId || null };
+  const prevStatus = r.status;
+
+  if (prevStatus !== 'EN COURS' && status === 'EN COURS') {
+    payload.start_time = new Date().toISOString();
+  }
+  if (prevStatus === 'EN COURS' && status === 'TERMINE') {
+    payload.end_time = new Date().toISOString();
+  }
+
+  const { error } = await sb().from('interventions').update(payload).eq('id', id);
 
   if (error) {
     alert('Erreur modification : ' + error.message);
@@ -318,11 +369,12 @@ async function setArchiveState(id, archive) {
   const r = requests.find(x => String(x.id) === String(id));
   if (!r) return alert('Intervention introuvable.');
   if (archive && !canArchive(r.status)) return alert('Seules les interventions terminées ou annulées peuvent être archivées.');
+  if (!archive && r.archived) return alert('Une intervention archivée ne peut pas être désarchivée.');
 
   const { error } = await sb().from('interventions').update({ archived: archive, updated_at: new Date().toISOString() }).eq('id', id);
   if (error) return alert('Erreur archivage : ' + error.message);
   await loadRequests();
-  // if on archives page and we just unarchived, refresh archives view
+  // if on archives page and we just unarchived (not allowed) refresh archives view
   if (page() === 'archives') await loadArchivedRequests();
   document.getElementById('detailsModal')?.close?.();
 }
@@ -347,7 +399,9 @@ async function loadArchivedRequests() {
     technicienNom: row.techniciens?.nom || '',
     status: row.etat,
     priority: row.priorite,
-    createdAt: new Date(row.created_at).toLocaleString('fr-FR')
+    createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
+    start_time: row.start_time || null,
+    end_time: row.end_time || null
   }));
 
   list.innerHTML = items.map(r => `
@@ -355,6 +409,7 @@ async function loadArchivedRequests() {
        <div>
          <strong>${r.code || ''} — ${r.equipment || ''}</strong>
          <p class="meta">${r.name} · ${r.department}</p>
+         <p class="meta">Début : ${formatDateTime(r.start_time)} · Fin : ${formatDateTime(r.end_time)} · Durée : ${durationText(r.start_time, r.end_time)}</p>
        </div>
        <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:140px;">
          <span class="badge ${badgeClass(r.status)}">${r.status}</span>
