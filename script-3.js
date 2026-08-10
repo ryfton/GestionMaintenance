@@ -13,6 +13,7 @@ function page() {
   if (path === 'dashboard.html') return 'dashboard';
   if (path === 'new-request.html') return 'new-request';
   if (path === 'requests.html') return 'requests';
+  if (path === 'archives.html') return 'archives';
   return 'login';
 }
 
@@ -60,8 +61,16 @@ function showAppState() {
 }
 
 async function loadProfile(userId) {
-  const { data, error } = await sb().from('profiles').select('*').eq('id', userId).single();
-  if (!error) currentProfile = data;
+  const { data, error } = await sb().from('profiles').select('*').eq('id', userId).maybeSingle();
+  // fallback: some schemas use user_id
+  if (error || !data) {
+    const { data: d2, error: e2 } = await sb().from('profiles').select('*').eq('user_id', userId).maybeSingle();
+    if (!e2 && d2) {
+      currentProfile = d2;
+      return;
+    }
+  }
+  currentProfile = data || null;
 }
 
 async function loadTechnicians() {
@@ -73,11 +82,16 @@ async function loadTechnicians() {
   }
 }
 
+// Load active (non-archived) requests
 async function loadRequests() {
   const list = document.getElementById('requestList');
-  if (!list) return;
+  // on pages without requestList (like dashboard) still fetch to populate requests[]
 
-  const { data, error } = await sb().from('interventions').select('*, techniciens(id, nom)').order('created_at', { ascending: false });
+  const { data, error } = await sb()
+    .from('interventions')
+    .select('*, techniciens(id, nom)')
+    .eq('archived', false)
+    .order('created_at', { ascending: false });
   if (error) {
     alert('Erreur chargement interventions : ' + error.message);
     return;
@@ -96,7 +110,8 @@ async function loadRequests() {
     status: row.etat,
     technicienId: row.technicien_id,
     technicienNom: row.techniciens?.nom || '',
-    createdAt: new Date(row.created_at).toLocaleString('fr-FR')
+    createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
+    archived: !!row.archived
   }));
 
   renderDashboard();
@@ -228,6 +243,7 @@ async function openRequestDetails(id) {
 
     <div class="action-row">
       <button class="primary" id="saveDetailsBtn">Enregistrer</button>
+      <button class="ghost" id="archiveBtn">${r.archived ? 'Désarchiver' : 'Archiver'}</button>
     </div>
 
     <h3 style="margin-top:18px;">Ajouter une note</h3>
@@ -242,6 +258,10 @@ async function openRequestDetails(id) {
 
   document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
+  document.getElementById('archiveBtn')?.addEventListener('click', async () => {
+    const shouldArchive = !r.archived;
+    await setArchiveState(id, shouldArchive);
+  });
 
   if (typeof modal.showModal === 'function') modal.showModal();
 }
@@ -289,6 +309,65 @@ async function addRequestNote(id) {
   await openRequestDetails(id);
 }
 
+// Archiving helpers
+function canArchive(status) {
+  return status === 'TERMINE' || status === 'ANNULE';
+}
+
+async function setArchiveState(id, archive) {
+  const r = requests.find(x => String(x.id) === String(id));
+  if (!r) return alert('Intervention introuvable.');
+  if (archive && !canArchive(r.status)) return alert('Seules les interventions terminées ou annulées peuvent être archivées.');
+
+  const { error } = await sb().from('interventions').update({ archived: archive, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) return alert('Erreur archivage : ' + error.message);
+  await loadRequests();
+  // if on archives page and we just unarchived, refresh archives view
+  if (page() === 'archives') await loadArchivedRequests();
+  document.getElementById('detailsModal')?.close?.();
+}
+
+// Load archived requests for archives.html
+async function loadArchivedRequests() {
+  const list = document.getElementById('archiveList');
+  if (!list) return;
+  const { data, error } = await sb()
+    .from('interventions')
+    .select('*, techniciens(id, nom)')
+    .eq('archived', true)
+    .order('created_at', { ascending: false });
+  if (error) { list.innerHTML = '<p class="meta">Erreur: '+error.message+'</p>'; return; }
+  const items = (data || []).map(row => ({
+    id: row.id,
+    code: row.code,
+    equipment: row.equipement,
+    name: row.demandeur,
+    department: row.departement,
+    site: row.site,
+    technicienNom: row.techniciens?.nom || '',
+    status: row.etat,
+    priority: row.priorite,
+    createdAt: new Date(row.created_at).toLocaleString('fr-FR')
+  }));
+
+  list.innerHTML = items.map(r => `
+     <div class="request-card" data-id="${r.id}">
+       <div>
+         <strong>${r.code || ''} — ${r.equipment || ''}</strong>
+         <p class="meta">${r.name} · ${r.department}</p>
+       </div>
+       <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:140px;">
+         <span class="badge ${badgeClass(r.status)}">${r.status}</span>
+         <span class="badge">${r.priority}</span>
+       </div>
+     </div>
+  `).join('') || '<div class="card">Aucune intervention archivée.</div>';
+
+  list.querySelectorAll('.request-card').forEach(card => {
+    card.addEventListener('click', () => openRequestDetails(card.dataset.id));
+  });
+}
+
 function bindRequestsPage() {
   document.getElementById('searchInput')?.addEventListener('input', renderRequests);
   document.getElementById('statusFilter')?.addEventListener('change', renderRequests);
@@ -318,6 +397,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else if (page() === 'new-request') {
     await ensureAuth();
     await loadTechnicians();
+  } else if (page() === 'archives') {
+    await ensureAuth();
+    if (currentUser?.id) await loadProfile(currentUser.id);
+    await loadTechnicians();
+    await loadArchivedRequests();
   }
 });
 
