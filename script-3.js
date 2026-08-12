@@ -269,7 +269,7 @@ async function loadHistory(id) {
     sb().from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false })
   ]);
   const notes = (notesRes.data || []).map(n => ({ note: n.note || n.contenu || '', auteur: n.created_by || n.auteur || 'Utilisateur', created_at: n.created_at || n.createdAt }));
-  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at || h.createdAt, changed_by: h.changed_by }));
+  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at || h.createdAt, changed_by: h.changed_by || h.auteur }));
   return { notes, history };
 }
 
@@ -548,12 +548,26 @@ function bindRequestsPage() {
   });
 }
 
+function bindModalClose() {
+  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
+    document.getElementById('detailsModal')?.close();
+  });
+}
+
 async function initRequestsPage() {
   bindRequestsPage();
   await ensureAuth();
   if (currentUser?.id) await loadProfile(currentUser.id);
   await loadTechnicians();
   await loadRequests();
+}
+
+async function initArchivesPage() {
+  bindModalClose();
+  await ensureAuth();
+  if (currentUser?.id) await loadProfile(currentUser.id);
+  await loadTechnicians();
+  await loadArchivedRequests();
 }
 
 // DOM ready: ensure dashboard loads requests as well
@@ -569,10 +583,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await ensureAuth();
     await loadTechnicians();
   } else if (page() === 'archives') {
-    await ensureAuth();
-    if (currentUser?.id) await loadProfile(currentUser.id);
-    await loadTechnicians();
-    await loadArchivedRequests();
+    await initArchivesPage();
   }
 });
 
