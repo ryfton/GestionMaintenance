@@ -384,7 +384,7 @@ async function openRequestDetails(id) {
     <h3 style="margin-top:18px;">Ajouter une note</h3>
     <textarea id="noteInput" class="note-box" placeholder="Écrire une note..."></textarea>
     <div class="action-row">
-      <button class="secondary" id="addNoteBtn">Ajouter la note</button>
+      <button class="primary" id="addNoteBtn">Ajouter la note</button>
     </div>
 
     <h3 style="margin-top:18px;">Historique & Notes</h3>
