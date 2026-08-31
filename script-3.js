@@ -383,6 +383,22 @@ async function openRequestDetails(id) {
       <button class="ghost" id="archiveBtn">${r.archived ? 'Archivée' : 'Archiver'}</button>
     </div>
 
+    <h3 style="margin-top:18px;">Sélectionner des articles</h3>
+    <div id="articleSelectContainer" style="margin-bottom:12px;">
+      <select id="articleSelect" style="width:100%;padding:8px;margin-bottom:8px;">
+        <option value="">-- Sélectionner un article --</option>
+        ${articles.map(a => `<option value="${a.id}">${a.nom} (Stock: ${a.quantite}, ${a.prix_unitaire}€)</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:8px;">
+        <input id="articleQtyInput" type="number" min="1" value="1" style="flex:1;padding:8px;" placeholder="Quantité" />
+        <button class="primary" id="addArticleBtn" type="button">Ajouter</button>
+      </div>
+    </div>
+
+    <div id="selectedArticlesList" style="margin-bottom:12px;border:1px solid #ddd;padding:8px;border-radius:4px;min-height:40px;background:#f9f9f9;">
+      <small style="color:#666;">Aucun article sélectionné</small>
+    </div>
+
     <h3 style="margin-top:18px;">Ajouter une note</h3>
     <textarea id="noteInput" class="note-box" placeholder="Écrire une note..."></textarea>
     <div class="action-row">
@@ -400,6 +416,8 @@ async function openRequestDetails(id) {
     document.getElementById('saveDetailsBtn')?.setAttribute('disabled', 'disabled');
     document.getElementById('archiveBtn')?.setAttribute('disabled', 'disabled');
     document.getElementById('addNoteBtn')?.setAttribute('disabled', 'disabled');
+    document.getElementById('addArticleBtn')?.setAttribute('disabled', 'disabled');
+    document.getElementById('articleSelect')?.setAttribute('disabled', 'disabled');
     // show a notice
     const ar = document.getElementById('actionRow');
     if (ar) {
@@ -411,8 +429,12 @@ async function openRequestDetails(id) {
     }
   }
 
+  // Store selected articles in modal data
+  if (!modal.dataset.articles) modal.dataset.articles = '[]';
+
   document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
+  document.getElementById('addArticleBtn')?.addEventListener('click', () => addArticleToIntervention(modal));
   document.getElementById('archiveBtn')?.addEventListener('click', async () => {
     const ok = await showConfirm("Confirmez-vous l'archivage de cette intervention ? Cette action est irréversible.");
     if (!ok) return;
@@ -420,7 +442,83 @@ async function openRequestDetails(id) {
     await setArchiveState(id, shouldArchive);
   });
 
+  // Initial render of selected articles
+  updateSelectedArticlesList(modal);
+
   if (typeof modal.showModal === 'function') modal.showModal();
+}
+
+function addArticleToIntervention(modal) {
+  const articleId = document.getElementById('articleSelect')?.value;
+  const qty = parseInt(document.getElementById('articleQtyInput')?.value) || 1;
+
+  if (!articleId) {
+    alert('Sélectionnez un article');
+    return;
+  }
+
+  const article = articles.find(a => a.id === parseInt(articleId));
+  if (!article) return;
+
+  if (qty > article.quantite) {
+    alert(`Quantité demandée (${qty}) supérieure au stock disponible (${article.quantite})`);
+    return;
+  }
+
+  let selected = JSON.parse(modal.dataset.articles || '[]');
+  
+  // Check if article already selected
+  const existing = selected.find(a => a.id === article.id);
+  if (existing) {
+    existing.qty += qty;
+  } else {
+    selected.push({
+      id: article.id,
+      nom: article.nom,
+      prix_unitaire: article.prix_unitaire,
+      qty: qty
+    });
+  }
+
+  modal.dataset.articles = JSON.stringify(selected);
+  document.getElementById('articleSelect').value = '';
+  document.getElementById('articleQtyInput').value = 1;
+  updateSelectedArticlesList(modal);
+}
+
+function updateSelectedArticlesList(modal) {
+  const container = document.getElementById('selectedArticlesList');
+  const selected = JSON.parse(modal.dataset.articles || '[]');
+
+  if (selected.length === 0) {
+    container.innerHTML = '<small style="color:#666;">Aucun article sélectionné</small>';
+    return;
+  }
+
+  container.innerHTML = `
+    <strong>Articles sélectionnés:</strong>
+    ${selected.map((a, idx) => `
+      <div style="display:flex;justify-content:space-between;padding:4px;margin:4px 0;background:white;border-radius:3px;">
+        <span>${a.nom} × ${a.qty} (${(a.prix_unitaire * a.qty).toFixed(2)}€)</span>
+        <button class="small-btn remove-article-btn" data-index="${idx}" type="button">Retirer</button>
+      </div>
+    `).join('')}
+    <div style="margin-top:8px;padding-top:8px;border-top:1px solid #ddd;text-align:right;">
+      <strong>Total: ${selected.reduce((sum, a) => sum + (a.prix_unitaire * a.qty), 0).toFixed(2)}€</strong>
+    </div>
+  `;
+
+  // Add remove listeners
+  container.querySelectorAll('.remove-article-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const idx = parseInt(btn.dataset.index);
+      let updatedSelected = JSON.parse(modal.dataset.articles || '[]');
+      updatedSelected.splice(idx, 1);
+      modal.dataset.articles = JSON.stringify(updatedSelected);
+      updateSelectedArticlesList(modal);
+    });
+  });
 }
 
 async function saveRequestDetails(id) {
@@ -560,20 +658,19 @@ function bindModalClose() {
 
 async function loadArticles() {
   const list = document.getElementById('articlesList');
-  if (!list) return;
-
+  
   const { data, error } = await sb()
     .from('articles')
     .select('*')
     .order('nom', { ascending: true });
 
   if (error) {
-    list.innerHTML = '<p class="meta">Erreur chargement articles : ' + error.message + '</p>';
+    if (list) list.innerHTML = '<p class="meta">Erreur chargement articles : ' + error.message + '</p>';
     return;
   }
 
   articles = (data || []);
-  renderArticles();
+  if (list) renderArticles();
 }
 
 function renderArticles() {
@@ -698,8 +795,8 @@ function bindStockPage() {
 async function initStockPage() {
   await ensureAuth();
   if (currentUser?.id) await loadProfile(currentUser.id);
-  bindStockPage();
   await loadArticles();
+  bindStockPage();
 }
 
 async function initRequestsPage() {
@@ -707,6 +804,7 @@ async function initRequestsPage() {
   await ensureAuth();
   if (currentUser?.id) await loadProfile(currentUser.id);
   await loadTechnicians();
+  await loadArticles();
   await loadRequests();
 }
 
@@ -715,6 +813,7 @@ async function initArchivesPage() {
   await ensureAuth();
   if (currentUser?.id) await loadProfile(currentUser.id);
   await loadTechnicians();
+  await loadArticles();
   await loadArchivedRequests();
 }
 
@@ -726,10 +825,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await ensureAuth();
     if (currentUser?.id) await loadProfile(currentUser.id);
     await loadTechnicians();
+    await loadArticles();
     await loadRequests();
   } else if (page() === 'new-request') {
     await ensureAuth();
     await loadTechnicians();
+    await loadArticles();
   } else if (page() === 'archives') {
     await initArchivesPage();
   } else if (page() === 'stock') {
