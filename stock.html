@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gestion - Stock</title>
+  <link rel="stylesheet" href="style-2.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_YMqvlXionoIK50UPJXXEtw_e2t22Pkn";
+    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>
+        <h1>Stock</h1>
+        <p>Gestion des articles</p>
+      </div>
+    </div>
+    <nav class="menu">
+      <a href="dashboard.html">Accueil</a>
+      <a href="new-request.html">Nouvelle intervention</a>
+      <a href="requests.html">Liste</a>
+      <a href="stock.html">Stock</a>
+      <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
+    </nav>
+  </header>
+
+  <main class="container auth-only">
+    <section class="card">
+      <h2>Articles</h2>
+
+      <form id="articleForm" class="form-grid">
+        <input id="articleId" type="hidden" />
+        <div class="field">
+          <label for="articleNom">Nom</label>
+          <input id="articleNom" type="text" placeholder="Nom de l'article" required />
+        </div>
+        <div class="field">
+          <label for="articleQuantite">Quantité</label>
+          <input id="articleQuantite" type="number" min="0" step="1" value="0" required />
+        </div>
+        <div class="field">
+          <label for="articlePrix">Prix unitaire</label>
+          <input id="articlePrix" type="number" min="0" step="0.01" value="0.00" required />
+        </div>
+        <div class="field">
+          <label for="articleSeuil">Seuil min</label>
+          <input id="articleSeuil" type="number" min="0" step="1" value="0" />
+        </div>
+        <div class="field full">
+          <label for="articleDesc">Description</label>
+          <textarea id="articleDesc" rows="2"></textarea>
+        </div>
+        <div class="field full">
+          <button id="saveArticleBtn" type="submit">Enregistrer</button>
+          <button id="resetArticleBtn" type="button">Nouveau</button>
+        </div>
+      </form>
+
+      <h3>Liste des articles</h3>
+      <div id="articlesList" class="request-list">Chargement...</div>
+    </section>
+  </main>
+
+  <script src="script-3.js"></script>
+</body>
+</html>
