@@ -3,6 +3,7 @@ let currentProfile = null;
 let selectedPriority = 'Basse';
 let requests = [];
 let technicians = [];
+let articles = [];
 
 function sb() {
   return window.supabaseClient;
@@ -14,6 +15,7 @@ function page() {
   if (path === 'new-request.html') return 'new-request';
   if (path === 'requests.html') return 'requests';
   if (path === 'archives.html') return 'archives';
+  if (path === 'stock.html') return 'stock';
   return 'login';
 }
 
@@ -269,7 +271,7 @@ async function loadHistory(id) {
     sb().from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false })
   ]);
   const notes = (notesRes.data || []).map(n => ({ note: n.note || n.contenu || '', auteur: n.created_by || n.auteur || 'Utilisateur', created_at: n.created_at || n.createdAt }));
-  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at || h.createdAt, changed_by: h.changed_by || h.auteur }));
+  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at || h.createdAt }));
   return { notes, history };
 }
 
@@ -554,6 +556,152 @@ function bindModalClose() {
   });
 }
 
+// --- Stock Management Functions ---
+
+async function loadArticles() {
+  const list = document.getElementById('articlesList');
+  if (!list) return;
+
+  const { data, error } = await sb()
+    .from('articles')
+    .select('*')
+    .order('nom', { ascending: true });
+
+  if (error) {
+    list.innerHTML = '<p class="meta">Erreur chargement articles : ' + error.message + '</p>';
+    return;
+  }
+
+  articles = (data || []);
+  renderArticles();
+}
+
+function renderArticles() {
+  const list = document.getElementById('articlesList');
+  if (!list) return;
+
+  const q = document.getElementById('searchArticles')?.value?.toLowerCase() || '';
+  const filtered = articles.filter(a => 
+    !q || [a.nom, a.description].join(' ').toLowerCase().includes(q)
+  );
+
+  list.innerHTML = filtered.map(a => `
+    <div class="request-card" style="margin-bottom:12px;">
+      <div>
+        <strong>${a.nom || ''}</strong>
+        <p class="meta">Prix : ${a.prix_unitaire || 0}€ · Quantité : ${a.quantite || 0}</p>
+        <p class="meta">Seuil min : ${a.seuil_min || 0} ${a.quantite < a.seuil_min ? '⚠️' : ''}</p>
+        <p style="margin-top:8px;">${a.description || ''}</p>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:120px;">
+        <button class="small-btn edit-article-btn" data-id="${a.id}">Modifier</button>
+        <button class="small-btn archive-btn" data-id="${a.id}">Supprimer</button>
+      </div>
+    </div>
+  `).join('') || '<div class="card">Aucun article trouvé.</div>';
+
+  list.querySelectorAll('.edit-article-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const article = articles.find(a => a.id === parseInt(id));
+      if (article) editArticle(article);
+    });
+  });
+
+  list.querySelectorAll('.archive-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const ok = await showConfirm('Êtes-vous sûr de vouloir supprimer cet article ?');
+      if (ok) await deleteArticle(parseInt(id));
+    });
+  });
+}
+
+function editArticle(article) {
+  document.getElementById('articleId').value = article.id || '';
+  document.getElementById('articleNom').value = article.nom || '';
+  document.getElementById('articleQuantite').value = article.quantite || 0;
+  document.getElementById('articlePrix').value = article.prix_unitaire || 0;
+  document.getElementById('articleSeuil').value = article.seuil_min || 0;
+  document.getElementById('articleDesc').value = article.description || '';
+  document.getElementById('articleNom').focus();
+}
+
+function resetArticleForm() {
+  document.getElementById('articleId').value = '';
+  document.getElementById('articleNom').value = '';
+  document.getElementById('articleQuantite').value = 0;
+  document.getElementById('articlePrix').value = 0;
+  document.getElementById('articleSeuil').value = 0;
+  document.getElementById('articleDesc').value = '';
+}
+
+async function saveArticle(e) {
+  e.preventDefault();
+
+  const id = document.getElementById('articleId').value;
+  const nom = document.getElementById('articleNom').value.trim();
+  const quantite = parseInt(document.getElementById('articleQuantite').value) || 0;
+  const prix = parseFloat(document.getElementById('articlePrix').value) || 0;
+  const seuil = parseInt(document.getElementById('articleSeuil').value) || 0;
+  const description = document.getElementById('articleDesc').value.trim();
+
+  if (!nom) {
+    alert('Veuillez saisir un nom d\'article');
+    return;
+  }
+
+  const payload = { nom, quantite, prix_unitaire: prix, seuil_min: seuil, description };
+
+  let error;
+  if (id) {
+    // Update
+    ({ error } = await sb().from('articles').update(payload).eq('id', parseInt(id)));
+  } else {
+    // Insert
+    ({ error } = await sb().from('articles').insert([payload]));
+  }
+
+  if (error) {
+    alert('Erreur : ' + error.message);
+    return;
+  }
+
+  resetArticleForm();
+  await loadArticles();
+  alert('Article enregistré avec succès');
+}
+
+async function deleteArticle(id) {
+  const { error } = await sb().from('articles').delete().eq('id', id);
+  if (error) {
+    alert('Erreur suppression : ' + error.message);
+    return;
+  }
+  await loadArticles();
+  alert('Article supprimé');
+}
+
+function bindStockPage() {
+  const form = document.getElementById('articleForm');
+  if (form) form.addEventListener('submit', saveArticle);
+
+  const resetBtn = document.getElementById('resetArticleBtn');
+  if (resetBtn) resetBtn.addEventListener('click', resetArticleForm);
+
+  const searchInput = document.getElementById('searchArticles');
+  if (searchInput) searchInput.addEventListener('input', renderArticles);
+}
+
+async function initStockPage() {
+  await ensureAuth();
+  if (currentUser?.id) await loadProfile(currentUser.id);
+  bindStockPage();
+  await loadArticles();
+}
+
 async function initRequestsPage() {
   bindRequestsPage();
   await ensureAuth();
@@ -584,6 +732,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadTechnicians();
   } else if (page() === 'archives') {
     await initArchivesPage();
+  } else if (page() === 'stock') {
+    await initStockPage();
   }
 });
 
@@ -615,6 +765,18 @@ async function login() {
 // Attacher l'écouteur si le bouton existe sur la page
 if (document.getElementById('loginBtn')) {
   document.getElementById('loginBtn').addEventListener('click', login);
+}
+
+// Logout button
+async function logout() {
+  await sb().auth.signOut();
+  currentUser = null;
+  currentProfile = null;
+  location.href = 'index.html';
+}
+
+if (document.getElementById('logoutBtn')) {
+  document.getElementById('logoutBtn').addEventListener('click', logout);
 }
 
 // Vérifier la session existante au chargement de n'importe quelle page
