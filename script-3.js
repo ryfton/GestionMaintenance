@@ -395,7 +395,7 @@ async function openRequestDetails(id) {
       </div>
     </div>
 
-    <div id="selectedArticlesList" style="margin-bottom:12px;border:1px solid #ddd;padding:8px;border-radius:4px;min-height:40px;background:#f9f9f9;">
+    <div id="selectedArticlesList" style="margin-bottom:12px;border:1px solid # #f59e0b;padding:8px;border-radius:4px;min-height:40px;background:#151d33;">
       <small style="color:#666;">Aucun article sélectionné</small>
     </div>
 
@@ -498,9 +498,10 @@ function updateSelectedArticlesList(modal) {
   container.innerHTML = `
     <strong>Articles sélectionnés:</strong>
     ${selected.map((a, idx) => `
-      <div style="display:flex;justify-content:space-between;padding:4px;margin:4px 0;background:white;border-radius:3px;">
+      <div style="display:flex;justify-content:space-between;padding:4px;margin:4px 0;background:#111a30;border-radius:3px;">
         <span>${a.nom} × ${a.qty} (${(a.prix_unitaire * a.qty).toFixed(2)}€)</span>
-        <button class="small-btn remove-article-btn" data-index="${idx}" type="button">Retirer</button>
+        <button class="small-btn remove-article-btn" data-index="${idx}" type="button" style="background:#443822;
+  border:1px solid #f59e0b;">Retirer</button>
       </div>
     `).join('')}
     <div style="margin-top:8px;padding-top:8px;border-top:1px solid #ddd;text-align:right;">
