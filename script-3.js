@@ -4,6 +4,7 @@ let selectedPriority = 'Basse';
 let requests = [];
 let technicians = [];
 let articles = [];
+let currentInterventionId = null; // To track intervention ID for article removal
 
 function sb() {
   return window.supabaseClient;
@@ -343,6 +344,8 @@ async function openRequestDetails(id) {
 
   if (!modal || !modalBody || !r) return;
 
+  currentInterventionId = id; // Store intervention ID for article removal
+
   const historyData = await loadHistory(id);
 
   modalBody.innerHTML = `
@@ -432,7 +435,7 @@ async function openRequestDetails(id) {
   // Store selected articles in modal data
   if (!modal.dataset.articles) modal.dataset.articles = '[]';
 
-  document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id, modal));
+  document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
   document.getElementById('addArticleBtn')?.addEventListener('click', () => addArticleToIntervention(modal));
   document.getElementById('archiveBtn')?.addEventListener('click', async () => {
@@ -511,18 +514,56 @@ function updateSelectedArticlesList(modal) {
 
   // Add remove listeners
   container.querySelectorAll('.remove-article-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       e.preventDefault();
       const idx = parseInt(btn.dataset.index);
       let updatedSelected = JSON.parse(modal.dataset.articles || '[]');
+      const removedArticle = updatedSelected[idx];
+      
+      // Consume the article immediately via RPC
+      const itemsToConsume = [{
+        article_id: removedArticle.id,
+        quantite: removedArticle.qty
+      }];
+
+      const { error: rpcError } = await sb().rpc('consume_articles_for_intervention', {
+        p_intervention_id: currentInterventionId,
+        p_items: itemsToConsume,
+        p_user: currentUser?.email || 'Utilisateur'
+      });
+
+      if (rpcError) {
+        alert('Erreur lors de la consommation des articles : ' + rpcError.message);
+        return;
+      }
+
+      // Create a note with the consumed article
+      const noteContent = `Matériel utilisé: ${removedArticle.nom} × ${removedArticle.qty}`;
+      
+      const { error: noteError } = await sb().from('notes_interventions').insert([{
+        intervention_id: currentInterventionId,
+        note: noteContent,
+        created_by: currentUser?.email || 'Utilisateur'
+      }]);
+
+      if (noteError) {
+        console.error('Erreur lors de la création de la note :', noteError);
+      }
+
+      // Remove from list
       updatedSelected.splice(idx, 1);
       modal.dataset.articles = JSON.stringify(updatedSelected);
+      
+      // Reload articles to show updated quantities
+      await loadArticles();
+      
+      // Update display
       updateSelectedArticlesList(modal);
     });
   });
 }
 
-async function saveRequestDetails(id, modal) {
+async function saveRequestDetails(id) {
   const r = requests.find(x => String(x.id) === String(id));
   if (!r) return alert('Intervention introuvable.');
   if (r.archived) return alert('Cette intervention est archivée et ne peut pas être modifiée.');
@@ -546,48 +587,6 @@ async function saveRequestDetails(id, modal) {
   if (error) {
     alert('Erreur modification : ' + error.message);
     return;
-  }
-
-  // Get selected articles from modal and consume them
-  const selectedArticles = JSON.parse(modal?.dataset.articles || '[]');
-  if (selectedArticles.length > 0) {
-    // Convert to format expected by RPC: { article_id, quantite }
-    const items = selectedArticles.map(a => ({
-      article_id: a.id,
-      quantite: a.qty
-    }));
-
-    // Call the RPC to consume articles and decrement stock
-    const { error: rpcError } = await sb().rpc('consume_articles_for_intervention', {
-      p_intervention_id: id,
-      p_items: items,
-      p_user: currentUser?.email || 'Utilisateur'
-    });
-
-    if (rpcError) {
-      alert('Erreur lors de la consommation des articles : ' + rpcError.message);
-      return;
-    }
-
-    // Create a note with the articles used
-    const articlesNoteContent = `Articles utilisés:\n${selectedArticles.map(a => `- ${a.nom} × ${a.qty}`).join('\n')}`;
-    
-    const notePayload = {
-      intervention_id: id,
-      note: articlesNoteContent,
-      created_by: currentUser?.email || 'Utilisateur'
-    };
-
-    const { error: noteError } = await sb().from('notes_interventions').insert([notePayload]);
-
-    if (noteError) {
-      console.error('Erreur lors de la création de la note des articles :', noteError);
-      // Don't alert, as articles were already consumed successfully
-    }
-
-    // Clear selected articles after successful consumption
-    modal.dataset.articles = '[]';
-    await loadArticles(); // reload articles to show updated quantities
   }
 
   await loadRequests();
