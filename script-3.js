@@ -868,6 +868,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (currentUser?.id) await loadProfile(currentUser.id);
     await loadTechnicians();
     await loadArticles();
+    renderArticlesAlerte();
     await loadRequests();
   } else if (page() === 'new-request') {
     await ensureAuth();
@@ -909,7 +910,28 @@ async function login() {
 if (document.getElementById('loginBtn')) {
   document.getElementById('loginBtn').addEventListener('click', login);
 }
+function renderArticlesAlerte() {
+  const list = document.getElementById('articlesAlerteList');
+  if (!list) return;
 
+  // articles[] est déjà rempli par loadArticles()
+  const enAlerte = articles.filter(a => (a.quantite || 0) <= (a.seuil_min || 0));
+
+  if (enAlerte.length === 0) {
+    list.innerHTML = '<div class="card">Aucun article en alerte de stock.</div>';
+    return;
+  }
+
+  list.innerHTML = enAlerte.map(a => `
+    <div class="request-card" style="margin-bottom:12px;">
+      <div>
+        <strong>${a.nom || ''}</strong>
+        <p class="meta">Quantité : ${a.quantite || 0} / Seuil min : ${a.seuil_min || 0} ⚠️</p>
+        <p style="margin-top:8px;">${a.description || ''}</p>
+      </div>
+    </div>
+  `).join('') || '<div class="card">Aucun article en alerte de stock.</div>';
+}
 // Logout button
 async function logout() {
   await sb().auth.signOut();
