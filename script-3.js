@@ -569,6 +569,22 @@ async function saveRequestDetails(id, modal) {
       return;
     }
 
+    // Create a note with the articles used
+    const articlesNoteContent = `Articles utilisés:\n${selectedArticles.map(a => `- ${a.nom} × ${a.qty}`).join('\n')}`;
+    
+    const notePayload = {
+      intervention_id: id,
+      note: articlesNoteContent,
+      created_by: currentUser?.email || 'Utilisateur'
+    };
+
+    const { error: noteError } = await sb().from('notes_interventions').insert([notePayload]);
+
+    if (noteError) {
+      console.error('Erreur lors de la création de la note des articles :', noteError);
+      // Don't alert, as articles were already consumed successfully
+    }
+
     // Clear selected articles after successful consumption
     modal.dataset.articles = '[]';
     await loadArticles(); // reload articles to show updated quantities
