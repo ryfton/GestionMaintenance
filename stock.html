@@ -30,39 +30,42 @@
     </nav>
   </header>
 
-<main class="container auth-only">
-  <section class="card">
-    <h2>Articles</h2>
+  <main class="container auth-only">
+    <section class="card">
+      <h2>Articles</h2>
 
-    <form id="articleForm" class="form-grid">
-      <input id="articleId" type="hidden" />
-      <div class="field">
-        <label for="articleNom">Nom</label>
-        <input id="articleNom" type="text" placeholder="Nom de l'article" required />
-      </div>
-      <div class="field">
-        <label for="articleQuantite">Quantité</label>
-        <input id="articleQuantite" type="number" min="0" step="1" value="0" required />
-      </div>
-      <div class="field">
-        <label for="articlePrix">Prix unitaire</label>
-        <input id="articlePrix" type="number" min="0" step="0.01" value="0.00" required />
-      </div>
-      <div class="field">
-        <label for="articleSeuil">Seuil min</label>
-        <input id="articleSeuil" type="number" min="0" step="1" value="0" />
-      </div>
-      <div class="field full">
-        <label for="articleDesc">Description</label>
-        <textarea id="articleDesc" rows="2"></textarea>
-      </div>
-      <div class="field full" style="display: flex; justify-content: center; gap: 1rem;">
-        <button id="saveArticleBtn" type="submit" style="width: 150px;">Enregistrer</button>
-        <button id="resetArticleBtn" type="button" style="width: 150px;">Nouveau</button>
-      </div>
-    </form>
-  </section>
-</main>
+      <form id="articleForm" class="form-grid">
+        <input id="articleId" type="hidden" />
+        <div class="field">
+          <label for="articleNom">Nom</label>
+          <input id="articleNom" type="text" placeholder="Nom de l'article" required />
+        </div>
+        <div class="field">
+          <label for="articleQuantite">Quantité</label>
+          <input id="articleQuantite" type="number" min="0" step="1" value="0" required />
+        </div>
+        <div class="field">
+          <label for="articlePrix">Prix unitaire</label>
+          <input id="articlePrix" type="number" min="0" step="0.01" value="0.00" required />
+        </div>
+        <div class="field">
+          <label for="articleSeuil">Seuil min</label>
+          <input id="articleSeuil" type="number" min="0" step="1" value="0" />
+        </div>
+        <div class="field full">
+          <label for="articleDesc">Description</label>
+          <textarea id="articleDesc" rows="2"></textarea>
+        </div>
+        <div class="field full" style="display: flex; justify-content: center; gap: 1rem;">
+          <button id="saveArticleBtn" type="submit" style="width: 150px;">Enregistrer</button>
+          <button id="resetArticleBtn" type="button" style="width: 150px;">Nouveau</button>
+        </div>
+      </form>
+
+      <h3>Liste des articles</h3>
+      <div id="articlesList" class="request-list">Chargement...</div>
+    </section>
+  </main>
 
   <script src="script-3.js"></script>
 </body>
