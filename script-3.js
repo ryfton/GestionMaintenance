@@ -432,7 +432,7 @@ async function openRequestDetails(id) {
   // Store selected articles in modal data
   if (!modal.dataset.articles) modal.dataset.articles = '[]';
 
-  document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
+  document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id, modal));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
   document.getElementById('addArticleBtn')?.addEventListener('click', () => addArticleToIntervention(modal));
   document.getElementById('archiveBtn')?.addEventListener('click', async () => {
@@ -522,7 +522,7 @@ function updateSelectedArticlesList(modal) {
   });
 }
 
-async function saveRequestDetails(id) {
+async function saveRequestDetails(id, modal) {
   const r = requests.find(x => String(x.id) === String(id));
   if (!r) return alert('Intervention introuvable.');
   if (r.archived) return alert('Cette intervention est archivée et ne peut pas être modifiée.');
@@ -546,6 +546,32 @@ async function saveRequestDetails(id) {
   if (error) {
     alert('Erreur modification : ' + error.message);
     return;
+  }
+
+  // Get selected articles from modal and consume them
+  const selectedArticles = JSON.parse(modal?.dataset.articles || '[]');
+  if (selectedArticles.length > 0) {
+    // Convert to format expected by RPC: { article_id, quantite }
+    const items = selectedArticles.map(a => ({
+      article_id: a.id,
+      quantite: a.qty
+    }));
+
+    // Call the RPC to consume articles and decrement stock
+    const { error: rpcError } = await sb().rpc('consume_articles_for_intervention', {
+      p_intervention_id: id,
+      p_items: items,
+      p_user: currentUser?.email || 'Utilisateur'
+    });
+
+    if (rpcError) {
+      alert('Erreur lors de la consommation des articles : ' + rpcError.message);
+      return;
+    }
+
+    // Clear selected articles after successful consumption
+    modal.dataset.articles = '[]';
+    await loadArticles(); // reload articles to show updated quantities
   }
 
   await loadRequests();
