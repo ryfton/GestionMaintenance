@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Maintenance - Installations</title>
+  <link rel="stylesheet" href="style-2.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_YMqvlXionoIK50UPJXXEtw_e2t22Pkn";
+    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">M</div>
+      <div>
+        <h1>Maintenance</h1>
+        <p id="roleLabel">INSTALLATIONS</p>
+      </div>
+    </div>
+    <nav class="menu">
+      <a href="dashboard.html">Accueil</a>
+      <a href="installations.html">Installations</a>
+      <a href="new-request.html">Nouvelle intervention</a>
+      <a href="requests.html">Liste</a>
+      <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
+    </nav>
+  </header>
+
+  <main class="container auth-only">
+    <section class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>Installations</h2>
+        <button class="primary" id="newInstallationBtn" type="button">+ Nouvelle installation</button>
+      </div>
+
+      <div class="toolbar">
+        <input id="searchInstallations" type="text" placeholder="Rechercher une installation..." />
+        <select id="statusFilterInstallations">
+          <option value="">Tous les statuts</option>
+          <option value="ACTIF">Actif</option>
+          <option value="ARRETE">Arrêté</option>
+          <option value="EN_MAINTENANCE">En maintenance</option>
+        </select>
+      </div>
+
+      <div id="installationList" class="request-list"></div>
+    </section>
+  </main>
+
+  <!-- Modal: Créer/Modifier Installation -->
+  <dialog id="installationModal" class="modal">
+    <div class="modal-content">
+      <button id="closeInstallationModal" class="close-btn">×</button>
+      <h2 id="installationModalTitle">Nouvelle installation</h2>
+      <form class="form-grid" id="installationForm">
+        <div class="field">
+          <label for="instCode">Code installation</label>
+          <input id="instCode" type="text" placeholder="ex: INST-001" required>
+        </div>
+        <div class="field">
+          <label for="instNom">Nom</label>
+          <input id="instNom" type="text" placeholder="Nom de l'installation" required>
+        </div>
+        <div class="field">
+          <label for="instType">Type d'équipement</label>
+          <input id="instType" type="text" placeholder="ex: Pompe, Compresseur..." required>
+        </div>
+        <div class="field">
+          <label for="instLocalisation">Localisation</label>
+          <input id="instLocalisation" type="text" placeholder="Bâtiment, Étage...">
+        </div>
+        <div class="field">
+          <label for="instDepartement">Département</label>
+          <input id="instDepartement" type="text" placeholder="Département">
+        </div>
+        <div class="field">
+          <label for="instDateInstallation">Date d'installation</label>
+          <input id="instDateInstallation" type="date">
+        </div>
+        <div class="field">
+          <label for="instResponsable">Responsable</label>
+          <input id="instResponsable" type="text" placeholder="Nom du responsable">
+        </div>
+        <div class="field">
+          <label for="instEtat">État</label>
+          <select id="instEtat">
+            <option value="ACTIF">Actif</option>
+            <option value="ARRETE">Arrêté</option>
+            <option value="EN_MAINTENANCE">En maintenance</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="instNotes">Notes</label>
+          <textarea id="instNotes" class="note-box" placeholder="Notes supplémentaires..."></textarea>
+        </div>
+        <div class="form-actions full">
+          <button class="secondary" type="button" id="cancelInstBtn">Annuler</button>
+          <button class="primary" type="submit">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Modal: Détails Installation -->
+  <dialog id="installationDetailsModal" class="modal">
+    <div class="modal-content">
+      <button id="closeDetailsModal" class="close-btn">×</button>
+      <div id="detailsContent"></div>
+    </div>
+  </dialog>
+
+  <!-- Modal: Planifier Maintenance Systématique -->
+  <dialog id="maintenanceSystematiqueModal" class="modal">
+    <div class="modal-content">
+      <button id="closeMaintenanceSystematiqueModal" class="close-btn">×</button>
+      <h2>Planifier une maintenance systématique</h2>
+      <form class="form-grid" id="maintenanceSystematiqueForm">
+        <div class="field full">
+          <label for="msType">Type de maintenance</label>
+          <select id="msType" required>
+            <option value="">Sélectionner un type</option>
+            <option value="PREVENTIVE">Préventive</option>
+            <option value="CORRECTIVE">Corrective</option>
+            <option value="CURATIVE">Curative</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="msPeriodicite">Périodicité</label>
+          <select id="msPeriodicite" required>
+            <option value="">Sélectionner une périodicité</option>
+            <option value="HEBDOMADAIRE">Hebdomadaire</option>
+            <option value="MENSUEL">Mensuel</option>
+            <option value="TRIMESTRIEL">Trimestriel</option>
+            <option value="SEMESTRIEL">Semestriel</option>
+            <option value="ANNUEL">Annuel</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="msDateProchaine">Date de la prochaine intervention</label>
+          <input id="msDateProchaine" type="date" required>
+        </div>
+        <div class="field full">
+          <label for="msDescription">Description</label>
+          <textarea id="msDescription" class="note-box" placeholder="Détails de la maintenance..."></textarea>
+        </div>
+        <div class="field full">
+          <label for="msResponsable">Responsable planification</label>
+          <input id="msResponsable" type="text" placeholder="Nom du responsable">
+        </div>
+        <div class="form-actions full">
+          <button class="secondary" type="button" id="cancelMsBtn">Annuler</button>
+          <button class="primary" type="submit">Planifier</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Modal: Enregistrer Intervention Maintenance -->
+  <dialog id="recordMaintenanceModal" class="modal">
+    <div class="modal-content">
+      <button id="closeRecordMaintenanceModal" class="close-btn">×</button>
+      <h2>Enregistrer une intervention de maintenance</h2>
+      <form class="form-grid" id="recordMaintenanceForm">
+        <div class="field full">
+          <label for="rmType">Type de maintenance</label>
+          <select id="rmType" required>
+            <option value="">Sélectionner un type</option>
+            <option value="PREVENTIVE">Préventive</option>
+            <option value="CORRECTIVE">Corrective</option>
+            <option value="CURATIVE">Curative</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="rmDate">Date d'intervention</label>
+          <input id="rmDate" type="date" required>
+        </div>
+        <div class="field">
+          <label for="rmDuree">Durée (minutes)</label>
+          <input id="rmDuree" type="number" placeholder="0" min="0">
+        </div>
+        <div class="field full">
+          <label for="rmTechnicien">Technicien</label>
+          <select id="rmTechnicien">
+            <option value="">Sélectionner un technicien</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label for="rmConstat">Constat / Résultats</label>
+          <textarea id="rmConstat" class="note-box" placeholder="Résultats de l'intervention..."></textarea>
+        </div>
+        <div class="field full">
+          <label for="rmPieces">Pièces changées</label>
+          <textarea id="rmPieces" class="note-box" placeholder="Liste des pièces changées ou réparées..."></textarea>
+        </div>
+        <div class="field full">
+          <label for="rmDescription">Description</label>
+          <textarea id="rmDescription" class="note-box" placeholder="Détails de l'intervention..."></textarea>
+        </div>
+        <div class="form-actions full">
+          <button class="secondary" type="button" id="cancelRmBtn">Annuler</button>
+          <button class="primary" type="submit">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <script src="script.js"></script>
+</body>
+</html>
