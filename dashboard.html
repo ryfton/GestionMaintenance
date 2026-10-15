@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Maintenance - Tableau de bord</title>
   <link rel="stylesheet" href="style-2.css">
- <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_YMqvlXionoIK50UPJXXEtw_e2t22Pkn";
@@ -23,6 +23,7 @@
     </div>
     <nav class="menu">
       <a href="dashboard.html">Accueil</a>
+      <a href="installations.html">Installations</a>
       <a href="new-request.html">Nouvelle intervention</a>
       <a href="requests.html">Liste</a>
       <a href="stock.html">Stock</a>
@@ -36,15 +37,21 @@
       <div class="card quick-card"><h3>Terminées</h3><p id="doneCount">0</p></div>
       <div class="card quick-card"><h3>Rôle</h3><p id="userRoleText">-</p></div>
     </div>
+
+    <div class="card">
+      <h2>Prochaines maintenances</h2>
+      <p id="upcomingCount" class="meta">Chargement...</p>
+      <div id="upcomingMaintList" class="request-list" style="margin-top:12px">Chargement...</div>
+    </div>
+
     <div class="card">
       <h2>Bienvenue</h2>
       <p id="statsText">Chargement...</p>
     </div>
     <div class="card">
-    <h3>Articles en alerte de stock</h3>
-      <p>  <div id="articlesAlerteList" class="request-list">Chargement...</div></p>
-   
-      </div>
+      <h3>Articles en alerte de stock</h3>
+      <div id="articlesAlerteList" class="request-list">Chargement...</div>
+    </div>
   </main>
 
   <script src="script-3.js"></script>
