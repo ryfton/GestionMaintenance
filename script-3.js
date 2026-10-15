@@ -17,6 +17,7 @@ function page() {
   if (path === 'requests.html') return 'requests';
   if (path === 'archives.html') return 'archives';
   if (path === 'stock.html') return 'stock';
+  if (path === 'installations.html') return 'installations';
   return 'login';
 }
 
@@ -83,6 +84,381 @@ async function loadTechnicians() {
   if (sel) {
     sel.innerHTML = '<option value="">Aucun</option>' + technicians.map(t => `<option value="${t.id}">${t.nom}</option>`).join('');
   }
+}
+
+// --- Installations management (new) ---
+let installations = [];
+let currentInstallationId = null;
+
+function installationStatusClass(status) {
+  return ({
+    ACTIF: 'b-termine',
+    ARRETE: 'b-annule',
+    EN_MAINTENANCE: 'b-cours'
+  })[status] || 'b-attente';
+}
+
+function installationStatusLabel(status) {
+  return ({
+    ACTIF: 'Actif',
+    ARRETE: 'Arrêté',
+    EN_MAINTENANCE: 'En maintenance'
+  })[status] || 'Inconnu';
+}
+
+async function loadInstallations() {
+  const list = document.getElementById('installationList');
+  const { data, error } = await sb()
+    .from('installations')
+    .select('*')
+    .order('nom', { ascending: true });
+
+  if (error) {
+    if (list) list.innerHTML = '<p class="meta">Erreur chargement installations : ' + error.message + '</p>';
+    return;
+  }
+
+  installations = (data || []).map(row => ({
+    id: row.id,
+    code: row.code || '',
+    nom: row.nom || '',
+    type_equipement: row.type_equipement || '',
+    localisation: row.localisation || '',
+    departement: row.departement || '',
+    date_installation: row.date_installation || null,
+    responsable: row.responsable || '',
+    etat: row.etat || 'ACTIF',
+    notes: row.notes || ''
+  }));
+
+  renderInstallations();
+}
+
+function renderInstallations() {
+  const list = document.getElementById('installationList');
+  if (!list) return;
+
+  const q = document.getElementById('searchInstallations')?.value?.toLowerCase() || '';
+  const status = document.getElementById('statusFilterInstallations')?.value || '';
+
+  const filtered = installations.filter(inst => {
+    const haystack = [inst.code, inst.nom, inst.type_equipement, inst.localisation, inst.departement, inst.responsable].join(' ').toLowerCase();
+    return (!q || haystack.includes(q)) && (!status || inst.etat === status);
+  });
+
+  list.innerHTML = filtered.map(inst => `
+    <article class="request-card" data-installation-id="${inst.id}" style="cursor:pointer;">
+      <div>
+        <strong>${escapeHtml(inst.code || '')} — ${escapeHtml(inst.nom || '')}</strong>
+        <div class="meta">${escapeHtml(inst.type_equipement || '-')} · ${escapeHtml(inst.localisation || '-')} · ${escapeHtml(inst.departement || '-')}</div>
+        <div class="meta">Responsable : ${escapeHtml(inst.responsable || '-')} · ${inst.date_installation ? new Date(inst.date_installation).toLocaleDateString('fr-FR') : 'Date non renseignée'}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <span class="badge ${installationStatusClass(inst.etat)}">${installationStatusLabel(inst.etat)}</span>
+      </div>
+    </article>
+  `).join('') || '<p class="meta">Aucune installation trouvée.</p>';
+
+  list.querySelectorAll('[data-installation-id]').forEach(card => {
+    card.addEventListener('click', () => openInstallationDetails(card.dataset.installationId));
+  });
+}
+
+async function openInstallationDetails(id) {
+  const inst = installations.find(i => String(i.id) === String(id));
+  if (!inst) return;
+
+  currentInstallationId = id;
+  const details = document.getElementById('detailsContent');
+  const modal = document.getElementById('installationDetailsModal');
+  if (!details || !modal) return;
+
+  const [planRes, historyRes] = await Promise.all([
+    sb().from('maintenance_systematique').select('*').eq('installation_id', id).order('date_prochaine_intervention', { ascending: true }),
+    sb().from('historique_maintenances').select('*').eq('installation_id', id).order('date_intervention', { ascending: false })
+  ]);
+
+  const plans = planRes.data || [];
+  const histories = historyRes.data || [];
+
+  details.innerHTML = `
+    <h2>${escapeHtml(inst.nom || inst.code || 'Installation')}</h2>
+    <div class="detail-grid">
+      <div class="detail-box"><strong>Code</strong><div>${escapeHtml(inst.code || '-')}</div></div>
+      <div class="detail-box"><strong>État</strong><div>${installationStatusLabel(inst.etat)}</div></div>
+      <div class="detail-box"><strong>Type d'équipement</strong><div>${escapeHtml(inst.type_equipement || '-')}</div></div>
+      <div class="detail-box"><strong>Localisation</strong><div>${escapeHtml(inst.localisation || '-')}</div></div>
+      <div class="detail-box"><strong>Département</strong><div>${escapeHtml(inst.departement || '-')}</div></div>
+      <div class="detail-box"><strong>Responsable</strong><div>${escapeHtml(inst.responsable || '-')}</div></div>
+      <div class="detail-box" style="grid-column:1/-1"><strong>Notes</strong><div>${escapeHtml(inst.notes || 'Aucune note.')}</div></div>
+    </div>
+
+    <div class="action-row" style="margin-top:16px;">
+      <button class="primary" id="planMaintenanceBtn" type="button">Planifier une maintenance</button>
+      <button class="ghost" id="recordMaintenanceBtn" type="button">Enregistrer une intervention</button>
+      <button class="small-btn" id="editInstallationBtn" type="button">Modifier</button>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h3>Maintenance systématique planifiée</h3>
+      <div class="request-list" style="margin-top:10px;">
+        ${plans.length ? plans.map(p => `
+          <div class="detail-box">
+            <strong>${escapeHtml(p.type_maintenance || '-')}</strong>
+            <div class="meta">Périodicité : ${escapeHtml(p.periodicite || '-')}</div>
+            <div class="meta">Prochaine intervention : ${p.date_prochaine_intervention ? new Date(p.date_prochaine_intervention).toLocaleDateString('fr-FR') : '-'}</div>
+            <div style="margin-top:8px;">${escapeHtml(p.description || '')}</div>
+          </div>
+        `).join('') : '<p class="meta">Aucune maintenance planifiée.</p>'}
+      </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <h3>Historique des interventions</h3>
+      <div class="request-list" style="margin-top:10px;">
+        ${histories.length ? histories.map(h => `
+          <div class="detail-box">
+            <strong>${escapeHtml(h.type_maintenance || 'Maintenance')}</strong>
+            <div class="meta">${h.date_intervention ? new Date(h.date_intervention).toLocaleDateString('fr-FR') : '-'}</div>
+            <div style="margin-top:8px;">${escapeHtml(h.description_intervention || h.constat || '')}</div>
+            ${h.constat ? `<div class="meta">Constat : ${escapeHtml(h.constat)}</div>` : ''}
+            ${h.pieces_changees ? `<div class="meta">Pièces : ${escapeHtml(h.pieces_changees)}</div>` : ''}
+          </div>
+        `).join('') : '<p class="meta">Aucun historique pour cette installation.</p>'}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('planMaintenanceBtn')?.addEventListener('click', () => {
+    document.getElementById('maintenanceSystematiqueForm')?.reset();
+    document.getElementById('maintenanceSystematiqueModal')?.showModal?.();
+  });
+
+  document.getElementById('recordMaintenanceBtn')?.addEventListener('click', () => {
+    const techSelect = document.getElementById('rmTechnicien');
+    if (techSelect) {
+      techSelect.innerHTML = '<option value="">Sélectionner un technicien</option>' + technicians.map(t => `<option value="${t.id}">${escapeHtml(t.nom)}</option>`).join('');
+    }
+    document.getElementById('recordMaintenanceModal')?.showModal?.();
+  });
+
+  document.getElementById('editInstallationBtn')?.addEventListener('click', () => openInstallationForm(inst));
+
+  modal.showModal?.();
+}
+
+function openInstallationForm(inst = null) {
+  const modal = document.getElementById('installationModal');
+  const form = document.getElementById('installationForm');
+  if (!modal || !form) return;
+
+  document.getElementById('installationModalTitle').textContent = inst ? 'Modifier l\'installation' : 'Nouvelle installation';
+  form.dataset.mode = inst ? 'edit' : 'create';
+  form.dataset.installationId = inst ? inst.id : '';
+
+  document.getElementById('instCode').value = inst?.code || '';
+  document.getElementById('instNom').value = inst?.nom || '';
+  document.getElementById('instType').value = inst?.type_equipement || '';
+  document.getElementById('instLocalisation').value = inst?.localisation || '';
+  document.getElementById('instDepartement').value = inst?.departement || '';
+  document.getElementById('instDateInstallation').value = inst?.date_installation || '';
+  document.getElementById('instResponsable').value = inst?.responsable || '';
+  document.getElementById('instEtat').value = inst?.etat || 'ACTIF';
+  document.getElementById('instNotes').value = inst?.notes || '';
+
+  modal.showModal?.();
+}
+
+async function saveInstallation(e) {
+  e.preventDefault();
+  const form = e.target;
+  const payload = {
+    code: document.getElementById('instCode').value.trim(),
+    nom: document.getElementById('instNom').value.trim(),
+    type_equipement: document.getElementById('instType').value.trim(),
+    localisation: document.getElementById('instLocalisation').value.trim(),
+    departement: document.getElementById('instDepartement').value.trim(),
+    date_installation: document.getElementById('instDateInstallation').value || null,
+    responsable: document.getElementById('instResponsable').value.trim(),
+    etat: document.getElementById('instEtat').value,
+    notes: document.getElementById('instNotes').value.trim(),
+    updated_at: new Date().toISOString()
+  };
+
+  if (!payload.code || !payload.nom || !payload.type_equipement) {
+    alert('Veuillez renseigner le code, le nom et le type de l\'installation.');
+    return;
+  }
+
+  let query;
+  const installationId = form.dataset.installationId;
+  if (installationId) {
+    query = sb().from('installations').update(payload).eq('id', installationId);
+  } else {
+    query = sb().from('installations').insert([payload]);
+  }
+
+  const { error } = await query;
+  if (error) {
+    alert('Erreur enregistrement installation : ' + error.message);
+    return;
+  }
+
+  form.reset();
+  document.getElementById('installationModal')?.close?.();
+  await loadInstallations();
+  alert(installationId ? 'Installation modifiée avec succès.' : 'Installation enregistrée avec succès.');
+}
+
+async function submitMaintenancePlan(e) {
+  e.preventDefault();
+  if (!currentInstallationId) return alert('Aucune installation sélectionnée.');
+
+  const payload = {
+    installation_id: currentInstallationId,
+    type_maintenance: document.getElementById('msType').value,
+    periodicite: document.getElementById('msPeriodicite').value,
+    date_prochaine_intervention: document.getElementById('msDateProchaine').value || null,
+    description: document.getElementById('msDescription').value.trim(),
+    responsable_planification: document.getElementById('msResponsable').value.trim(),
+    created_at: new Date().toISOString()
+  };
+
+  if (!payload.type_maintenance || !payload.periodicite || !payload.date_prochaine_intervention) {
+    alert('Veuillez renseigner le type, la périodicité et la date de la prochaine intervention.');
+    return;
+  }
+
+  const { error } = await sb().from('maintenance_systematique').insert([payload]);
+  if (error) {
+    alert('Erreur planification maintenance : ' + error.message);
+    return;
+  }
+
+  document.getElementById('maintenanceSystematiqueForm').reset();
+  document.getElementById('maintenanceSystematiqueModal')?.close?.();
+  if (currentInstallationId) await openInstallationDetails(currentInstallationId);
+}
+
+async function submitMaintenanceRecord(e) {
+  e.preventDefault();
+  if (!currentInstallationId) return alert('Aucune installation sélectionnée.');
+
+  const payload = {
+    installation_id: currentInstallationId,
+    type_maintenance: document.getElementById('rmType').value,
+    date_intervention: document.getElementById('rmDate').value || null,
+    description_intervention: document.getElementById('rmDescription').value.trim(),
+    constat: document.getElementById('rmConstat').value.trim(),
+    pieces_changees: document.getElementById('rmPieces').value.trim(),
+    technicien_id: document.getElementById('rmTechnicien').value || null,
+    duree_minutes: Number(document.getElementById('rmDuree').value || 0),
+    created_at: new Date().toISOString()
+  };
+
+  if (!payload.type_maintenance || !payload.date_intervention) {
+    alert('Veuillez renseigner le type et la date de l\'intervention.');
+    return;
+  }
+
+  const { error } = await sb().from('historique_maintenances').insert([payload]);
+  if (error) {
+    alert('Erreur enregistrement de l\'intervention : ' + error.message);
+    return;
+  }
+
+  document.getElementById('recordMaintenanceForm').reset();
+  document.getElementById('recordMaintenanceModal')?.close?.();
+  if (currentInstallationId) await openInstallationDetails(currentInstallationId);
+}
+
+function bindInstallationsPage() {
+  document.getElementById('searchInstallations')?.addEventListener('input', renderInstallations);
+  document.getElementById('statusFilterInstallations')?.addEventListener('change', renderInstallations);
+  document.getElementById('newInstallationBtn')?.addEventListener('click', () => openInstallationForm());
+  document.getElementById('closeInstallationModal')?.addEventListener('click', () => document.getElementById('installationModal')?.close());
+  document.getElementById('cancelInstBtn')?.addEventListener('click', () => document.getElementById('installationModal')?.close());
+  document.getElementById('closeDetailsModal')?.addEventListener('click', () => document.getElementById('installationDetailsModal')?.close());
+  document.getElementById('closeMaintenanceSystematiqueModal')?.addEventListener('click', () => document.getElementById('maintenanceSystematiqueModal')?.close());
+  document.getElementById('cancelMsBtn')?.addEventListener('click', () => document.getElementById('maintenanceSystematiqueModal')?.close());
+  document.getElementById('closeRecordMaintenanceModal')?.addEventListener('click', () => document.getElementById('recordMaintenanceModal')?.close());
+  document.getElementById('cancelRmBtn')?.addEventListener('click', () => document.getElementById('recordMaintenanceModal')?.close());
+
+  document.getElementById('installationForm')?.addEventListener('submit', saveInstallation);
+  document.getElementById('maintenanceSystematiqueForm')?.addEventListener('submit', submitMaintenancePlan);
+  document.getElementById('recordMaintenanceForm')?.addEventListener('submit', submitMaintenanceRecord);
+}
+
+// --- Notifications & upcoming maintenances ---
+async function loadUpcomingMaintenances(days = 30) {
+  const listEl = document.getElementById('upcomingMaintList');
+  const countEl = document.getElementById('upcomingCount');
+  if (!listEl || !countEl) return;
+
+  const future = new Date(Date.now() + days * 24*60*60*1000);
+  const futureStr = future.toISOString().split('T')[0];
+
+  const { data, error } = await sb()
+    .from('maintenance_systematique')
+    .select('id, installation_id, type_maintenance, periodicite, description, date_prochaine_intervention, responsable_planification, installations(code, nom)')
+    .lte('date_prochaine_intervention', futureStr)
+    .order('date_prochaine_intervention', { ascending: true });
+
+  if (error) {
+    listEl.innerHTML = `<p class="meta">Erreur chargement maintenances : ${error.message}</p>`;
+    countEl.textContent = 'Erreur';
+    return;
+  }
+
+  const items = data || [];
+  countEl.textContent = `${items.length} dans ${days} jours`;
+
+  if (items.length === 0) {
+    listEl.innerHTML = '<div class="card">Aucune maintenance prochaine.</div>';
+    return;
+  }
+
+  listEl.innerHTML = items.map(it => {
+    const inst = it.installations || {};
+    const dateStr = it.date_prochaine_intervention ? new Date(it.date_prochaine_intervention).toLocaleDateString('fr-FR') : '-';
+    return `
+      <div class="request-card">
+        <div>
+          <strong>${escapeHtml(inst.code || '')} — ${escapeHtml(inst.nom || '')}</strong>
+          <p class="meta">${escapeHtml(it.type_maintenance || '')} · ${escapeHtml(it.periodicite || '')}</p>
+          <p class="meta">Prochaine : ${dateStr} · Responsable: ${escapeHtml(it.responsable_planification || '-')}</p>
+          <p style="margin-top:8px;">${escapeHtml(it.description || '')}</p>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          <span class="badge ${new Date(it.date_prochaine_intervention) <= new Date() ? 'b-nouveau' : 'b-cours'}">${dateStr}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function notifyUpcomingMaintenances(days = 7) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+  if (Notification.permission !== 'granted') return;
+
+  const { data, error } = await sb()
+    .from('maintenance_systematique')
+    .select('id, installation_id, type_maintenance, periodicite, date_prochaine_intervention, installations(code, nom)')
+    .lte('date_prochaine_intervention', new Date(Date.now() + days*24*3600*1000).toISOString().split('T')[0])
+    .order('date_prochaine_intervention', { ascending: true });
+
+  if (error || !data) return;
+
+  data.slice(0,5).forEach(it => {
+    const inst = it.installations || {};
+    const dateStr = it.date_prochaine_intervention ? new Date(it.date_prochaine_intervention).toLocaleDateString('fr-FR') : '-';
+    const title = `Maintenance prévue: ${inst.nom || inst.code || 'Installation'}`;
+    const body = `${it.type_maintenance || ''} le ${dateStr}`;
+    new Notification(title, { body });
+  });
 }
 
 // --- Confirmation modal utility (styled) ---
@@ -272,7 +648,7 @@ async function loadHistory(id) {
     sb().from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false })
   ]);
   const notes = (notesRes.data || []).map(n => ({ note: n.note || n.contenu || '', auteur: n.created_by || n.auteur || 'Utilisateur', created_at: n.created_at || n.createdAt }));
-  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at || h.createdAt }));
+  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at }));
   return { notes, history };
 }
 
@@ -870,6 +1246,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadArticles();
     renderArticlesAlerte();
     await loadRequests();
+
+    // upcoming maintenances UI
+    await loadUpcomingMaintenances(30);
+    setInterval(() => loadUpcomingMaintenances(30), 5 * 60 * 1000);
+    notifyUpcomingMaintenances(7);
+
   } else if (page() === 'new-request') {
     await ensureAuth();
     await loadTechnicians();
@@ -878,6 +1260,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initArchivesPage();
   } else if (page() === 'stock') {
     await initStockPage();
+  } else if (page() === 'installations') {
+    await ensureAuth();
+    if (currentUser?.id) await loadProfile(currentUser.id);
+    await loadTechnicians();
+    await loadInstallations();
+    bindInstallationsPage();
   }
 });
 
