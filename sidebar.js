@@ -46,6 +46,7 @@
           <div class="sidebar-logo">M</div>
           <span>Maintenance</span>
         </div>
+        <button type="button" class="sidebar-close" id="sidebarCloseBtn" aria-label="Fermer le menu">×</button>
       </div>
       <nav class="sidebar-nav" aria-label="Navigation principale">
         ${links}
@@ -64,18 +65,27 @@
     pageWrapper.classList.add('page-with-sidebar');
 
     const toggle = document.getElementById('sidebarToggle');
+    const closeBtn = document.getElementById('sidebarCloseBtn');
     const hideOnMobile = window.matchMedia('(max-width: 900px)');
 
     // create mobile open button and overlay
     createMobileControls();
 
     // restore saved collapsed state
-    const saved = localStorage.getItem('sidebar-collapsed');
-    if (saved === 'true') {
+    const savedCollapsed = localStorage.getItem('sidebar-collapsed');
+    if (savedCollapsed === 'true') {
       sidebar.classList.add('collapsed');
       pageWrapper.classList.add('sidebar-collapsed');
       document.body.classList.add('sidebar-enabled');
       document.body.classList.add('sidebar-collapsed');
+    }
+
+    // restore saved hidden state
+    const savedHidden = localStorage.getItem('sidebar-hidden');
+    if (savedHidden === 'true' && !hideOnMobile.matches) {
+      document.body.classList.add('sidebar-hidden');
+      // apply grid change by adding class; the CSS grid handles the width
+      document.body.classList.add('sidebar-enabled');
     }
 
     toggle.addEventListener('click', () => {
@@ -85,7 +95,7 @@
         return;
       }
 
-      // Desktop collapse/expand
+      // Desktop collapse/expand: toggle collapsed state
       const collapsed = sidebar.classList.toggle('collapsed');
       if (collapsed) {
         pageWrapper.classList.add('sidebar-collapsed');
@@ -98,6 +108,14 @@
       localStorage.setItem('sidebar-collapsed', collapsed ? 'true' : 'false');
     });
 
+    // Close button for mobile drawer
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        // if mobile, close drawer; otherwise do nothing (it's hidden on desktop)
+        if (hideOnMobile.matches) closeSidebarMobile();
+      });
+    }
+
     const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
     if (sidebarLogoutBtn) {
       sidebarLogoutBtn.addEventListener('click', callLogout);
@@ -106,9 +124,8 @@
     // close drawer when clicking a link on mobile
     sidebar.querySelectorAll('.sidebar-link').forEach(link => {
       link.addEventListener('click', (e) => {
-        const mq = window.matchMedia('(max-width: 900px)');
-        if (mq.matches) {
-          // allow navigation to happen, but hide the drawer immediately
+        if (window.matchMedia('(max-width: 900px)').matches) {
+          // hide drawer but allow navigation
           closeSidebarMobile();
         }
       });
