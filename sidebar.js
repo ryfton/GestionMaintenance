@@ -9,8 +9,7 @@
   ];
 
   function currentPage() {
-    const path = window.location.pathname.split('/').pop() || 'dashboard.html';
-    return path;
+    return window.location.pathname.split('/').pop() || 'dashboard.html';
   }
 
   function callLogout() {
@@ -33,8 +32,10 @@
     sidebar.className = 'app-sidebar';
     sidebar.id = 'appSidebar';
 
+    // build links with a more robust active detection (handles query strings)
     const links = sidebarPages.map((page) => {
-      const activeClass = activePage === page.href ? 'active' : '';
+      const isActive = window.location.pathname.endsWith('/' + page.href) || window.location.pathname === '/' && page.href === 'dashboard.html' || currentPage() === page.href;
+      const activeClass = isActive ? 'active' : '';
       return `<a class="sidebar-link ${activeClass}" href="${page.href}"><span>${page.label}</span></a>`;
     }).join('');
 
@@ -56,22 +57,36 @@
 
     document.body.insertBefore(sidebar, document.body.firstChild);
 
+    // find main page wrapper to push
+    const pageWrapper = document.querySelector('main') || document.querySelector('.container') || document.body;
+
+    // ensure wrapper gets class to be pushed aside
+    pageWrapper.classList.add('page-with-sidebar');
+
     const toggle = document.getElementById('sidebarToggle');
     const hideOnMobile = window.matchMedia('(max-width: 900px)');
 
-    // Read saved state
+    // restore saved collapsed state
     const saved = localStorage.getItem('sidebar-collapsed');
     if (saved === 'true') {
       sidebar.classList.add('collapsed');
-      document.body.classList.add('sidebar-collapsed');
+      pageWrapper.classList.add('sidebar-collapsed');
+      document.body.classList.add('sidebar-enabled');
     }
 
     toggle.addEventListener('click', () => {
       const collapsed = sidebar.classList.toggle('collapsed');
+      if (collapsed) {
+        pageWrapper.classList.add('sidebar-collapsed');
+      } else {
+        pageWrapper.classList.remove('sidebar-collapsed');
+      }
+      // on mobile toggling should open/close the drawer
       if (hideOnMobile.matches) {
-        // on mobile toggling should open/close the drawer
         sidebar.classList.toggle('open', !collapsed);
       }
+      // mark that sidebar is enabled so we can hide topbar/menu
+      document.body.classList.add('sidebar-enabled');
       localStorage.setItem('sidebar-collapsed', collapsed ? 'true' : 'false');
     });
 
@@ -87,13 +102,11 @@
 
   function shouldInitSidebar() {
     const page = currentPage();
-    // initialize on all pages except the login/index page
     return page !== 'index.html' && page !== '';
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!shouldInitSidebar()) return;
-    // only init if there's a topbar or menu (to avoid totally static pages)
     const hasTopbar = document.querySelector('.topbar') !== null || document.querySelector('.menu') !== null;
     if (!hasTopbar) return;
 

@@ -9,10 +9,23 @@
   --sidebar-active-border: #f59e0b;
 }
 
-body.sidebar-enabled {
-  padding-left: var(--sidebar-width);
+/* Old approach used body padding-left which shifted the whole layout and made centering look wrong.
+   Use a page wrapper class instead so we only push the main content, keeping centered containers intact. */
+
+/* removed: body.sidebar-enabled { padding-left: var(--sidebar-width); } */
+
+/* When the sidebar is present, add this class to the page wrapper (main.container). It will push
+   the content by the sidebar width so centered elements remain centered inside their container. */
+.page-with-sidebar {
+  margin-left: var(--sidebar-width);
+  transition: margin-left 0.18s ease;
 }
 
+.page-with-sidebar.sidebar-collapsed {
+  margin-left: var(--sidebar-collapsed);
+}
+
+/* keep existing behavior for hiding the old topbar/menu when the sidebar is active */
 body.sidebar-enabled .topbar {
   display: none !important;
 }
@@ -21,6 +34,7 @@ body.sidebar-enabled .menu {
   display: none !important;
 }
 
+/* ensure container doesn't get double offsets */
 body.sidebar-enabled .container {
   margin-left: 0;
 }
@@ -39,7 +53,7 @@ body.sidebar-enabled .container {
   flex-direction: column;
   gap: 18px;
   z-index: 20;
-  transition: width 0.2s ease;
+  transition: width 0.2s ease, transform 0.18s ease;
 }
 
 .app-sidebar.collapsed {
@@ -159,9 +173,8 @@ body.sidebar-enabled .container {
 }
 
 @media (max-width: 900px) {
-  body.sidebar-enabled {
-    padding-left: 0;
-  }
+  /* On small screens do not shift content horizontally */
+  .page-with-sidebar { margin-left: 0; }
 
   .app-sidebar {
     transform: translateX(-100%);
