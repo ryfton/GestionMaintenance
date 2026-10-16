@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Maintenance - Installations</title>
   <link rel="stylesheet" href="style-2.css">
+  <link rel="stylesheet" href="sidebar.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
@@ -51,7 +52,6 @@
     </section>
   </main>
 
-  <!-- Modal: Créer/Modifier Installation -->
   <dialog id="installationModal" class="modal">
     <div class="modal-content">
       <button id="closeInstallationModal" class="close-btn">×</button>
@@ -105,7 +105,6 @@
     </div>
   </dialog>
 
-  <!-- Modal: Détails Installation -->
   <dialog id="installationDetailsModal" class="modal">
     <div class="modal-content">
       <button id="closeDetailsModal" class="close-btn">×</button>
@@ -113,7 +112,6 @@
     </div>
   </dialog>
 
-  <!-- Modal: Planifier Maintenance Systématique -->
   <dialog id="maintenanceSystematiqueModal" class="modal">
     <div class="modal-content">
       <button id="closeMaintenanceSystematiqueModal" class="close-btn">×</button>
@@ -159,7 +157,6 @@
     </div>
   </dialog>
 
-  <!-- Modal: Enregistrer Intervention Maintenance -->
   <dialog id="recordMaintenanceModal" class="modal">
     <div class="modal-content">
       <button id="closeRecordMaintenanceModal" class="close-btn">×</button>
@@ -209,5 +206,6 @@
   </dialog>
 
   <script src="script-3.js"></script>
+  <script src="sidebar.js" defer></script>
 </body>
 </html>
