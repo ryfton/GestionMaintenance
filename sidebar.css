@@ -1,44 +1,31 @@
-:root {
-  --sidebar-width: 240px;
-  --sidebar-collapsed: 86px;
-  --sidebar-bg: rgba(15, 23, 42, 0.98);
-  --sidebar-border: rgba(148, 163, 184, 0.18);
-  --sidebar-text: #e2e8f0;
-  --sidebar-muted: #a5b4cf;
-  --sidebar-active: rgba(245, 158, 11, 0.18);
-  --sidebar-active-border: #f59e0b;
+/* Mobile button to open the sidebar */
+.mobile-menu-button {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  width: 44px;
+  height: 44px;
+  background: rgba(21, 24, 39, 0.9);
+  color: var(--sidebar-text);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 10px;
+  display: none; /* visible only on small screens */
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+  cursor: pointer;
 }
 
-/* Old approach used body padding-left which shifted the whole layout and made centering look wrong.
-   Use a page wrapper class instead so we only push the main content, keeping centered containers intact. */
-
-/* removed: body.sidebar-enabled { padding-left: var(--sidebar-width); } */
-
-/* When the sidebar is present, add this class to the page wrapper (main.container). It will push
-   the content by the sidebar width so centered elements remain centered inside their container. */
-.page-with-sidebar {
-  margin-left: var(--sidebar-width);
-  transition: margin-left 0.18s ease;
+/* overlay covering the page when the sidebar is open on mobile */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 1400;
+  display: none;
 }
 
-.page-with-sidebar.sidebar-collapsed {
-  margin-left: var(--sidebar-collapsed);
-}
-
-/* keep existing behavior for hiding the old topbar/menu when the sidebar is active */
-body.sidebar-enabled .topbar {
-  display: none !important;
-}
-
-body.sidebar-enabled .menu {
-  display: none !important;
-}
-
-/* ensure container doesn't get double offsets */
-body.sidebar-enabled .container {
-  margin-left: 0;
-}
-
+/* ensure the sidebar slides in over content on mobile */
 .app-sidebar {
   position: fixed;
   top: 0;
@@ -52,137 +39,21 @@ body.sidebar-enabled .container {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  z-index: 20;
+  z-index: 1450; /* above overlay */
   transition: width 0.2s ease, transform 0.18s ease;
 }
 
-.app-sidebar.collapsed {
-  width: var(--sidebar-collapsed);
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 52px;
-}
-
-.sidebar-toggle {
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--sidebar-border);
-  border-radius: 12px;
-  background: rgba(148, 163, 184, 0.08);
-  color: var(--sidebar-text);
-  cursor: pointer;
-  font-size: 1.1rem;
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.sidebar-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  background: #f59e0b;
-  color: #111827;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-
-.sidebar-brand span {
-  color: var(--sidebar-text);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.sidebar-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 44px;
-  border-radius: 12px;
-  padding: 10px 12px;
-  text-decoration: none;
-  color: var(--sidebar-text);
-  background: transparent;
-  border: 1px solid transparent;
-  transition: all 0.15s ease;
-}
-
-.sidebar-link:hover {
-  background: rgba(148, 163, 184, 0.08);
-  border-color: var(--sidebar-border);
-}
-
-.sidebar-link.active {
-  background: var(--sidebar-active);
-  border-color: rgba(245, 158, 11, 0.45);
-  color: #fff7d6;
-  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.18);
-}
-
-.sidebar-footer {
-  margin-top: auto;
-}
-
-.sidebar-logout {
-  width: 100%;
-  border: 1px solid var(--sidebar-border);
-  background: rgba(248, 113, 113, 0.08);
-  color: #fecaca;
-  border-radius: 12px;
-  padding: 10px 12px;
-  cursor: pointer;
-}
-
-/* Hide labels when collapsed */
-.app-sidebar.collapsed .sidebar-brand span,
-.app-sidebar.collapsed .sidebar-link span,
-.app-sidebar.collapsed .sidebar-logout {
-  display: none;
-}
-
-/* Also hide the logo when collapsed to fully minimize visual footprint */
-.app-sidebar.collapsed .sidebar-logo {
-  display: none;
-}
-
-.app-sidebar.collapsed .sidebar-link {
-  justify-content: center;
-  padding: 10px 8px;
-}
-
-.app-sidebar.collapsed .sidebar-header {
-  justify-content: center;
-}
-
 @media (max-width: 900px) {
-  /* On small screens do not shift content horizontally */
+  /* show a dedicated mobile button */
+  .mobile-menu-button { display: inline-flex; }
+
+  /* when mobile, sidebar is hidden by default (off screen) */
+  .app-sidebar { transform: translateX(-100%); }
+  .app-sidebar.open { transform: translateX(0); }
+
+  /* overlay visible when the sidebar is opened */
+  .sidebar-overlay.visible { display: block; }
+
+  /* when the sidebar is open we don't push the main content */
   .page-with-sidebar { margin-left: 0; }
-
-  .app-sidebar {
-    transform: translateX(-100%);
-    width: var(--sidebar-width);
-    box-shadow: 12px 0 30px rgba(0, 0, 0, 0.18);
-  }
-
-  .app-sidebar.open {
-    transform: translateX(0);
-  }
 }

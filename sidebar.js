@@ -66,6 +66,9 @@
     const toggle = document.getElementById('sidebarToggle');
     const hideOnMobile = window.matchMedia('(max-width: 900px)');
 
+    // create mobile open button and overlay
+    createMobileControls();
+
     // restore saved collapsed state
     const saved = localStorage.getItem('sidebar-collapsed');
     if (saved === 'true') {
@@ -75,17 +78,19 @@
     }
 
     toggle.addEventListener('click', () => {
+      // On mobile: toggle visibility (open/close) using overlay and open class
+      if (hideOnMobile.matches) {
+        openSidebarMobile();
+        return;
+      }
+
+      // Desktop behavior: collapse/expand
       const collapsed = sidebar.classList.toggle('collapsed');
       if (collapsed) {
         pageWrapper.classList.add('sidebar-collapsed');
       } else {
         pageWrapper.classList.remove('sidebar-collapsed');
       }
-      // on mobile toggling should open/close the drawer
-      if (hideOnMobile.matches) {
-        sidebar.classList.toggle('open', !collapsed);
-      }
-      // mark that sidebar is enabled so we can hide topbar/menu
       document.body.classList.add('sidebar-enabled');
       localStorage.setItem('sidebar-collapsed', collapsed ? 'true' : 'false');
     });
@@ -96,8 +101,52 @@
     }
 
     if (hideOnMobile.matches) {
-      sidebar.classList.add('open');
+      sidebar.classList.remove('open'); // ensure closed initially
     }
+  }
+
+  // mobile controls: button + overlay
+  function createMobileControls() {
+    if (document.getElementById('mobileSidebarOpenBtn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'mobileSidebarOpenBtn';
+    btn.className = 'mobile-menu-button';
+    btn.setAttribute('aria-label', 'Ouvrir le menu');
+    btn.innerHTML = '☰';
+
+    document.body.appendChild(btn);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'sidebarOverlay';
+    overlay.className = 'sidebar-overlay';
+    document.body.appendChild(overlay);
+
+    btn.addEventListener('click', openSidebarMobile);
+    overlay.addEventListener('click', closeSidebarMobile);
+
+    // close on ESC
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeSidebarMobile();
+    });
+  }
+
+  function openSidebarMobile() {
+    const sidebar = document.getElementById('appSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar || !overlay) return;
+    sidebar.classList.add('open');
+    overlay.classList.add('visible');
+    document.body.classList.add('sidebar-enabled');
+    // keep it fixed until user closes explicitly
+  }
+
+  function closeSidebarMobile() {
+    const sidebar = document.getElementById('appSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (!sidebar || !overlay) return;
+    sidebar.classList.remove('open');
+    overlay.classList.remove('visible');
   }
 
   function shouldInitSidebar() {
