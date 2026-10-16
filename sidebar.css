@@ -137,9 +137,15 @@ body.sidebar-enabled .container {
   cursor: pointer;
 }
 
+/* Hide labels when collapsed */
 .app-sidebar.collapsed .sidebar-brand span,
 .app-sidebar.collapsed .sidebar-link span,
 .app-sidebar.collapsed .sidebar-logout {
+  display: none;
+}
+
+/* Also hide the logo when collapsed to fully minimize visual footprint */
+.app-sidebar.collapsed .sidebar-logo {
   display: none;
 }
 

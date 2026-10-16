@@ -59,11 +59,20 @@
     const toggle = document.getElementById('sidebarToggle');
     const hideOnMobile = window.matchMedia('(max-width: 900px)');
 
+    // Read saved state
+    const saved = localStorage.getItem('sidebar-collapsed');
+    if (saved === 'true') {
+      sidebar.classList.add('collapsed');
+      document.body.classList.add('sidebar-collapsed');
+    }
+
     toggle.addEventListener('click', () => {
       const collapsed = sidebar.classList.toggle('collapsed');
       if (hideOnMobile.matches) {
+        // on mobile toggling should open/close the drawer
         sidebar.classList.toggle('open', !collapsed);
       }
+      localStorage.setItem('sidebar-collapsed', collapsed ? 'true' : 'false');
     });
 
     const sidebarLogoutBtn = document.getElementById('sidebarLogoutBtn');
@@ -78,13 +87,15 @@
 
   function shouldInitSidebar() {
     const page = currentPage();
+    // initialize on all pages except the login/index page
     return page !== 'index.html' && page !== '';
   }
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!shouldInitSidebar()) return;
-    const hasAuthOnly = document.querySelector('.auth-only');
-    if (!hasAuthOnly) return;
+    // only init if there's a topbar or menu (to avoid totally static pages)
+    const hasTopbar = document.querySelector('.topbar') !== null || document.querySelector('.menu') !== null;
+    if (!hasTopbar) return;
 
     document.body.classList.add('sidebar-enabled');
     if (!document.getElementById('appSidebar')) {
