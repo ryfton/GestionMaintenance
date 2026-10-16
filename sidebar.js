@@ -57,10 +57,10 @@
 
     document.body.insertBefore(sidebar, document.body.firstChild);
 
-    // find main page wrapper to push
+    // find main page wrapper to position into the grid
     const pageWrapper = document.querySelector('main') || document.querySelector('.container') || document.body;
 
-    // ensure wrapper gets class to be pushed aside
+    // ensure wrapper gets class to be placed in the second column
     pageWrapper.classList.add('page-with-sidebar');
 
     const toggle = document.getElementById('sidebarToggle');
@@ -75,21 +75,24 @@
       sidebar.classList.add('collapsed');
       pageWrapper.classList.add('sidebar-collapsed');
       document.body.classList.add('sidebar-enabled');
+      document.body.classList.add('sidebar-collapsed');
     }
 
     toggle.addEventListener('click', () => {
-      // On mobile: toggle visibility (open/close) using overlay and open class
+      // On mobile: open drawer
       if (hideOnMobile.matches) {
         openSidebarMobile();
         return;
       }
 
-      // Desktop behavior: collapse/expand
+      // Desktop collapse/expand
       const collapsed = sidebar.classList.toggle('collapsed');
       if (collapsed) {
         pageWrapper.classList.add('sidebar-collapsed');
+        document.body.classList.add('sidebar-collapsed');
       } else {
         pageWrapper.classList.remove('sidebar-collapsed');
+        document.body.classList.remove('sidebar-collapsed');
       }
       document.body.classList.add('sidebar-enabled');
       localStorage.setItem('sidebar-collapsed', collapsed ? 'true' : 'false');
@@ -99,6 +102,17 @@
     if (sidebarLogoutBtn) {
       sidebarLogoutBtn.addEventListener('click', callLogout);
     }
+
+    // close drawer when clicking a link on mobile
+    sidebar.querySelectorAll('.sidebar-link').forEach(link => {
+      link.addEventListener('click', (e) => {
+        const mq = window.matchMedia('(max-width: 900px)');
+        if (mq.matches) {
+          // allow navigation to happen, but hide the drawer immediately
+          closeSidebarMobile();
+        }
+      });
+    });
 
     if (hideOnMobile.matches) {
       sidebar.classList.remove('open'); // ensure closed initially
@@ -138,7 +152,8 @@
     sidebar.classList.add('open');
     overlay.classList.add('visible');
     document.body.classList.add('sidebar-enabled');
-    // keep it fixed until user closes explicitly
+    // prevent body scroll while drawer is open
+    document.body.style.overflow = 'hidden';
   }
 
   function closeSidebarMobile() {
@@ -147,6 +162,7 @@
     if (!sidebar || !overlay) return;
     sidebar.classList.remove('open');
     overlay.classList.remove('visible');
+    document.body.style.overflow = '';
   }
 
   function shouldInitSidebar() {
