@@ -1,211 +1,70 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Maintenance - Installations</title>
-  <link rel="stylesheet" href="style-2.css">
-  <link rel="stylesheet" href="sidebar.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script>
-    const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_YMqvlXionoIK50UPJXXEtw_e2t22Pkn";
-    window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  </script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Maintenance - Installations</title>
+<link rel="stylesheet" href="style-2.css"><link rel="stylesheet" href="sidebar.css">
+<style>main.installations-page{display:block;min-width:0;width:100%}.installation-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.maintenance-section{margin-top:20px}.maintenance-section h3{margin-bottom:12px}.maintenance-message{white-space:pre-wrap;color:var(--red);margin:12px 0}.modal-content{max-height:90vh;overflow:auto}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>window.supabaseClient=supabase.createClient('https://nysedvoipzetqafcnqdj.supabase.co','sb_publishable_YMqvlXionoIK50UPJXXEtw_e2t22Pkn');</script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">M</div>
-      <div>
-        <h1>Maintenance</h1>
-        <p id="roleLabel">INSTALLATIONS</p>
-      </div>
-    </div>
-    <nav class="menu">
-      <a href="dashboard.html">Accueil</a>
-      <a href="installations.html">Installations</a>
-      <a href="new-request.html">Nouvelle intervention</a>
-      <a href="requests.html">Liste</a>
-      <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
-    </nav>
-  </header>
-
-  <main class="container auth-only">
-    <section class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>Installations</h2>
-        <button class="primary" id="newInstallationBtn" type="button">+ Nouvelle installation</button>
-      </div>
-
-      <div class="toolbar">
-        <input id="searchInstallations" type="text" placeholder="Rechercher une installation..." />
-        <select id="statusFilterInstallations">
-          <option value="">Tous les statuts</option>
-          <option value="ACTIF">Actif</option>
-          <option value="ARRETE">Arrêté</option>
-          <option value="EN_MAINTENANCE">En maintenance</option>
-        </select>
-      </div>
-
-      <div id="installationList" class="request-list"></div>
-    </section>
-  </main>
-
-  <dialog id="installationModal" class="modal">
-    <div class="modal-content">
-      <button id="closeInstallationModal" class="close-btn">×</button>
-      <h2 id="installationModalTitle">Nouvelle installation</h2>
-      <form class="form-grid" id="installationForm">
-        <div class="field">
-          <label for="instCode">Code installation</label>
-          <input id="instCode" type="text" placeholder="ex: INST-001" required>
-        </div>
-        <div class="field">
-          <label for="instNom">Nom</label>
-          <input id="instNom" type="text" placeholder="Nom de l'installation" required>
-        </div>
-        <div class="field">
-          <label for="instType">Type d'équipement</label>
-          <input id="instType" type="text" placeholder="ex: Pompe, Compresseur..." required>
-        </div>
-        <div class="field">
-          <label for="instLocalisation">Localisation</label>
-          <input id="instLocalisation" type="text" placeholder="Bâtiment, Étage...">
-        </div>
-        <div class="field">
-          <label for="instDepartement">Département</label>
-          <input id="instDepartement" type="text" placeholder="Département">
-        </div>
-        <div class="field">
-          <label for="instDateInstallation">Date d'installation</label>
-          <input id="instDateInstallation" type="date">
-        </div>
-        <div class="field">
-          <label for="instResponsable">Responsable</label>
-          <input id="instResponsable" type="text" placeholder="Nom du responsable">
-        </div>
-        <div class="field">
-          <label for="instEtat">État</label>
-          <select id="instEtat">
-            <option value="ACTIF">Actif</option>
-            <option value="ARRETE">Arrêté</option>
-            <option value="EN_MAINTENANCE">En maintenance</option>
-          </select>
-        </div>
-        <div class="field full">
-          <label for="instNotes">Notes</label>
-          <textarea id="instNotes" class="note-box" placeholder="Notes supplémentaires..."></textarea>
-        </div>
-        <div class="form-actions full">
-          <button class="secondary" type="button" id="cancelInstBtn">Annuler</button>
-          <button class="primary" type="submit">Enregistrer</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
-
-  <dialog id="installationDetailsModal" class="modal">
-    <div class="modal-content">
-      <button id="closeDetailsModal" class="close-btn">×</button>
-      <div id="detailsContent"></div>
-    </div>
-  </dialog>
-
-  <dialog id="maintenanceSystematiqueModal" class="modal">
-    <div class="modal-content">
-      <button id="closeMaintenanceSystematiqueModal" class="close-btn">×</button>
-      <h2>Planifier une maintenance systématique</h2>
-      <form class="form-grid" id="maintenanceSystematiqueForm">
-        <div class="field full">
-          <label for="msType">Type de maintenance</label>
-          <select id="msType" required>
-            <option value="">Sélectionner un type</option>
-            <option value="PREVENTIVE">Préventive</option>
-            <option value="CORRECTIVE">Corrective</option>
-            <option value="CURATIVE">Curative</option>
-          </select>
-        </div>
-        <div class="field full">
-          <label for="msPeriodicite">Périodicité</label>
-          <select id="msPeriodicite" required>
-            <option value="">Sélectionner une périodicité</option>
-            <option value="HEBDOMADAIRE">Hebdomadaire</option>
-            <option value="MENSUEL">Mensuel</option>
-            <option value="TRIMESTRIEL">Trimestriel</option>
-            <option value="SEMESTRIEL">Semestriel</option>
-            <option value="ANNUEL">Annuel</option>
-          </select>
-        </div>
-        <div class="field full">
-          <label for="msDateProchaine">Date de la prochaine intervention</label>
-          <input id="msDateProchaine" type="date" required>
-        </div>
-        <div class="field full">
-          <label for="msDescription">Description</label>
-          <textarea id="msDescription" class="note-box" placeholder="Détails de la maintenance..."></textarea>
-        </div>
-        <div class="field full">
-          <label for="msResponsable">Responsable planification</label>
-          <input id="msResponsable" type="text" placeholder="Nom du responsable">
-        </div>
-        <div class="form-actions full">
-          <button class="secondary" type="button" id="cancelMsBtn">Annuler</button>
-          <button class="primary" type="submit">Planifier</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
-
-  <dialog id="recordMaintenanceModal" class="modal">
-    <div class="modal-content">
-      <button id="closeRecordMaintenanceModal" class="close-btn">×</button>
-      <h2>Enregistrer une intervention de maintenance</h2>
-      <form class="form-grid" id="recordMaintenanceForm">
-        <div class="field full">
-          <label for="rmType">Type de maintenance</label>
-          <select id="rmType" required>
-            <option value="">Sélectionner un type</option>
-            <option value="PREVENTIVE">Préventive</option>
-            <option value="CORRECTIVE">Corrective</option>
-            <option value="CURATIVE">Curative</option>
-          </select>
-        </div>
-        <div class="field">
-          <label for="rmDate">Date d'intervention</label>
-          <input id="rmDate" type="date" required>
-        </div>
-        <div class="field">
-          <label for="rmDuree">Durée (minutes)</label>
-          <input id="rmDuree" type="number" placeholder="0" min="0">
-        </div>
-        <div class="field full">
-          <label for="rmTechnicien">Technicien</label>
-          <select id="rmTechnicien">
-            <option value="">Sélectionner un technicien</option>
-          </select>
-        </div>
-        <div class="field full">
-          <label for="rmConstat">Constat / Résultats</label>
-          <textarea id="rmConstat" class="note-box" placeholder="Résultats de l'intervention..."></textarea>
-        </div>
-        <div class="field full">
-          <label for="rmPieces">Pièces changées</label>
-          <textarea id="rmPieces" class="note-box" placeholder="Liste des pièces changées ou réparées..."></textarea>
-        </div>
-        <div class="field full">
-          <label for="rmDescription">Description</label>
-          <textarea id="rmDescription" class="note-box" placeholder="Détails de l'intervention..."></textarea>
-        </div>
-        <div class="form-actions full">
-          <button class="secondary" type="button" id="cancelRmBtn">Annuler</button>
-          <button class="primary" type="submit">Enregistrer</button>
-        </div>
-      </form>
-    </div>
-  </dialog>
-
-  <script src="script-3.js"></script>
-  <script src="sidebar.js" defer></script>
-</body>
-</html>
+<header class="topbar"><div class="brand"><div class="logo">M</div><h1>Installations</h1></div><nav class="menu"><a href="dashboard.html">Accueil</a><a href="requests.html">Demandes</a><a href="stock.html">Stock</a></nav></header>
+<main class="container auth-only installations-page"><section class="card"><div class="installation-actions"><h2>Installations</h2><button class="primary" id="newInstallationBtn" type="button">+ Nouvelle installation</button></div><div class="toolbar"><input id="searchInstallations" placeholder="Rechercher une installation"><select id="statusFilterInstallations"><option value="">Tous les états</option><option>ACTIF</option><option>ARRETE</option><option>EN_MAINTENANCE</option></select></div><p id="maintenanceMessage" class="maintenance-message" role="status"></p><div id="installationList" class="request-list">Chargement...</div></section></main>
+<dialog id="installationModal" class="modal"><div class="modal-content"><button id="closeInstallationModal" class="close-btn" type="button">×</button><h2 id="installationModalTitle">Installation</h2><form id="installationForm" class="form-grid"><div class="field"><label for="instCode">Code</label><input id="instCode" required></div><div class="field"><label for="instNom">Nom</label><input id="instNom" required></div><div class="field"><label for="instType">Type d’équipement</label><input id="instType" required></div><div class="field"><label for="instLocalisation">Localisation</label><input id="instLocalisation"></div><div class="field"><label for="instDepartement">Département</label><input id="instDepartement"></div><div class="field"><label for="instDateInstallation">Date d’installation</label><input id="instDateInstallation" type="date"></div><div class="field"><label for="instResponsable">Responsable</label><input id="instResponsable"></div><div class="field"><label for="instEtat">État</label><select id="instEtat"><option>ACTIF</option><option>ARRETE</option><option>EN_MAINTENANCE</option></select></div><div class="field full"><label for="instNotes">Notes</label><textarea id="instNotes"></textarea></div><div class="form-actions full"><button id="cancelInstBtn" type="button" class="ghost">Annuler</button><button type="submit" class="primary">Enregistrer</button></div></form></div></dialog>
+<dialog id="installationDetailsModal" class="modal"><div class="modal-content"><button type="button" class="close-btn" id="closeDetailsModal">×</button><div id="detailsContent"></div></div></dialog>
+<dialog id="maintenanceEditor" class="modal"><div class="modal-content"><button type="button" class="close-btn" id="closeMaintenanceEditor">×</button><h2 id="maintenanceEditorTitle"></h2><form id="maintenanceEditorForm" class="form-grid"></form><p id="maintenanceEditorError" class="maintenance-message" role="status"></p></div></dialog>
+<script src="script-3.js"></script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const text=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const db=()=>window.supabaseClient;
+let selectedId=null,plans=[];
+const report=e=>{$('maintenanceMessage').textContent=e.message||String(e);};
+const run=fn=>Promise.resolve().then(fn).catch(report);
+const dateLabel=d=>d?new Date(d+'T12:00:00').toLocaleDateString('fr-FR'):'Non définie';
+async function rows(table,id,order){const{data,error}=await db().from(table).select('*').eq('installation_id',id).order(order,{ascending:table!=='historique_maintenances'});if(error)throw error;return data||[];}
+async function details(id){
+selectedId=id;$('detailsContent').textContent='Chargement des maintenances...';const modal=$('installationDetailsModal');if(!modal.open)modal.showModal();
+try{
+const i=installations.find(x=>String(x.id)===String(id));
+const results=await Promise.allSettled([rows('maintenance_systematique',id,'date_prochaine_intervention'),rows('historique_maintenances',id,'date_intervention')]);
+plans=results[0].status==='fulfilled'?results[0].value:[];
+const history=results[1].status==='fulfilled'?results[1].value:[];
+$('detailsContent').innerHTML=`<h2>${text(i?.code)} — ${text(i?.nom)}</h2><p class="meta">${text(i?.type_equipement)} · ${text(i?.localisation)}</p><div class="installation-actions"><button class="primary" data-maint="plan">Planifier une maintenance</button><button class="ghost" data-maint="record">Enregistrer une maintenance réalisée</button></div><section class="maintenance-section"><h3>Maintenances programmées</h3>${results[0].status==='rejected'?'<p class="maintenance-message">'+text(results[0].reason.message)+'</p>':plans.map(p=>`<article class="detail-box"><strong>${text(p.type_maintenance)} · ${text(p.periodicite)}</strong><p>Prochaine échéance : ${dateLabel(p.date_prochaine_intervention)}</p><p>${text(p.description)}</p><p class="meta">Responsable : ${text(p.responsable_planification||'Non renseigné')}</p><button class="small-btn" data-edit-plan="${text(p.id)}">Modifier la programmation</button></article>`).join('')||'<p class="meta">Aucune maintenance programmée.</p>'}</section><section class="maintenance-section"><h3>Historique des maintenances réalisées</h3>${results[1].status==='rejected'?'<p class="maintenance-message">'+text(results[1].reason.message)+'</p>':history.map(h=>`<article class="detail-box"><strong>${dateLabel(h.date_intervention)} · ${text(h.type_maintenance)}</strong><p>${text(h.description_intervention)}</p><p>Constat : ${text(h.constat||'—')}</p><p>Pièces : ${text(h.pieces_changees||'—')}</p><p class="meta">Durée : ${text(h.duree_minutes??0)} min · Technicien : ${text(technicians.find(t=>String(t.id)===String(h.technicien_id))?.nom||'Non renseigné')}</p></article>`).join('')||'<p class="meta">Aucune maintenance enregistrée.</p>'}</section>`;
+}catch(e){$('detailsContent').textContent='Erreur de chargement : '+e.message;}
+}
+function field(id,label,type='text'){return `<div class="field full"><label for="${id}">${label}</label><input id="${id}" type="${type}"></div>`;}
+function editor(mode,planId=''){
+const p=plans.find(x=>String(x.id)===String(planId));const f=$('maintenanceEditorForm');f.dataset.mode=mode;f.dataset.planId=p?.id||'';f.dataset.installationId=selectedId;
+$('maintenanceEditorTitle').textContent=mode==='plan'?'Programmer une maintenance':'Enregistrer une maintenance réalisée';$('maintenanceEditorError').textContent='';
+f.innerHTML='<div class="field full"><label for="maintType">Type</label><select id="maintType" required><option value="PREVENTIVE">Préventive</option><option value="CORRECTIVE">Corrective</option><option value="CURATIVE">Curative</option></select></div>'+(mode==='plan'?'<div class="field full"><label for="maintPeriod">Périodicité</label><select id="maintPeriod" required><option value="HEBDOMADAIRE">Hebdomadaire</option><option value="MENSUEL">Mensuel</option><option value="TRIMESTRIEL">Trimestriel</option><option value="SEMESTRIEL">Semestriel</option><option value="ANNUEL">Annuel</option></select></div>'+field('maintDate','Prochaine échéance','date')+field('maintResponsible','Responsable'):field('maintDate','Date de réalisation','date')+field('maintDuration','Durée (minutes)','number')+'<div class="field full"><label for="maintTech">Technicien</label><select id="maintTech"><option value="">Non renseigné</option>'+technicians.map(t=>`<option value="${text(t.id)}">${text(t.nom)}</option>`).join('')+'</select></div>'+field('maintFinding','Constat')+field('maintParts','Pièces changées'))+'<div class="field full"><label for="maintDescription">Description</label><textarea id="maintDescription"></textarea></div><div class="form-actions full"><button class="primary" type="submit">Enregistrer</button></div>';
+$('maintDate').required=true;
+if(mode==='record'){$('maintDuration').min='0';$('maintDuration').step='1';$('maintDuration').value='0';const now=new Date();$('maintDate').value=new Date(now-now.getTimezoneOffset()*60000).toISOString().slice(0,10);}
+if(p){$('maintType').value=p.type_maintenance;$('maintPeriod').value=p.periodicite;$('maintDate').value=p.date_prochaine_intervention||'';$('maintResponsible').value=p.responsable_planification||'';$('maintDescription').value=p.description||'';}
+$('maintenanceEditor').showModal();
+}
+$('maintenanceEditorForm').addEventListener('submit',async e=>{
+e.preventDefault();const f=e.currentTarget,button=f.querySelector('[type=submit]');button.disabled=true;$('maintenanceEditorError').textContent='';
+try{
+if(!currentUser)throw new Error('Session absente : reconnectez-vous.');
+const payload={installation_id:f.dataset.installationId,type_maintenance:$('maintType').value};let query;
+if(f.dataset.mode==='plan'){Object.assign(payload,{periodicite:$('maintPeriod').value,date_prochaine_intervention:$('maintDate').value,responsable_planification:$('maintResponsible').value.trim(),description:$('maintDescription').value.trim()});query=f.dataset.planId?db().from('maintenance_systematique').update(payload).eq('id',f.dataset.planId):db().from('maintenance_systematique').insert([payload]);}
+else{const duration=Number($('maintDuration').value);if(!Number.isInteger(duration)||duration<0)throw new Error('Durée invalide.');Object.assign(payload,{date_intervention:$('maintDate').value,duree_minutes:duration,technicien_id:$('maintTech').value||null,constat:$('maintFinding').value.trim(),pieces_changees:$('maintParts').value.trim(),description_intervention:$('maintDescription').value.trim()});query=db().from('historique_maintenances').insert([payload]);}
+const{data,error}=await query.select('id');if(error)throw error;if(!data?.length)throw new Error('Aucune ligne enregistrée. Vérifiez les droits Supabase.');
+$('maintenanceEditor').close();await details(f.dataset.installationId);
+}catch(error){$('maintenanceEditorError').textContent=error.message;}finally{button.disabled=false;}
+});
+$('closeMaintenanceEditor').onclick=()=>$('maintenanceEditor').close();$('closeDetailsModal').onclick=()=>$('installationDetailsModal').close();
+$('detailsContent').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.maint)editor(b.dataset.maint);else if(b.dataset.editPlan)editor('plan',b.dataset.editPlan);});
+const originalRender=renderInstallations;
+renderInstallations=function(){originalRender();$('installationList').querySelectorAll('.request-card').forEach(card=>{const edit=card.querySelector('.edit-installation-btn');if(!edit)return;const actions=document.createElement('div');actions.className='installation-actions';const b=document.createElement('button');b.type='button';b.className='primary';b.textContent='Maintenances et historique';b.onclick=()=>run(()=>details(edit.dataset.id));actions.appendChild(b);card.firstElementChild.appendChild(actions);});};
+const originalOpen=openInstallationModal;
+openInstallationModal=function(id=''){originalOpen(id);const i=installations.find(x=>String(x.id)===String(id));$('instType').value=i?.type_equipement||'';};
+saveInstallation=async function(e){e.preventDefault();const modal=$('installationModal'),id=modal.dataset.id;const payload={code:$('instCode').value.trim(),nom:$('instNom').value.trim(),type_equipement:$('instType').value.trim(),localisation:$('instLocalisation').value.trim(),departement:$('instDepartement').value.trim(),date_installation:$('instDateInstallation').value||null,responsable:$('instResponsable').value.trim(),etat:$('instEtat').value,notes:$('instNotes').value.trim(),updated_at:new Date().toISOString()};const b=e.currentTarget.querySelector('[type=submit]');b.disabled=true;try{const q=id?db().from('installations').update(payload).eq('id',id):db().from('installations').insert([payload]);const{data,error}=await q.select('id');if(error)throw error;if(!data?.length)throw new Error('Aucune installation enregistrée. Vérifiez les droits Supabase.');modal.close();await loadInstallationsList();}catch(error){alert('Erreur : '+error.message);}finally{b.disabled=false;}};
+document.addEventListener('DOMContentLoaded',()=>run(async()=>{if(!await ensureAuth())return;await loadTechnicians();}));
+})();
+</script>
+<script src="sidebar.js" defer></script>
+</body></html>
