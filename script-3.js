@@ -3,6 +3,7 @@ let currentProfile = null;
 let selectedPriority = 'Basse';
 let requests = [];
 let technicians = [];
+let stockArticles = [];
 
 function sb() {
   return window.supabaseClient;
@@ -371,6 +372,28 @@ async function openRequestDetails(id) {
       <button class="ghost" id="archiveBtn">${r.archived ? 'Archivée' : 'Archiver'}</button>
     </div>
 
+    <h3 style="margin-top:18px;">Ajouter un article du stock</h3>
+    <div class="detail-grid">
+      <div class="field">
+        <label for="stockArticleSelect">Article</label>
+        <select id="stockArticleSelect">
+          <option value="">Chargement...</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="stockQuantity">Quantité utilisée</label>
+        <input type="number" id="stockQuantity" min="1" value="1">
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="primary" id="addStockBtn">Ajouter et déduire du stock</button>
+    </div>
+
+    <h3 style="margin-top:18px;">Articles utilisés</h3>
+    <div id="usedArticlesBox" class="request-list">
+      <p class="meta">Chargement...</p>
+    </div>
+
     <h3 style="margin-top:18px;">Ajouter une note</h3>
     <textarea id="noteInput" class="note-box" placeholder="Écrire une note..."></textarea>
     <div class="action-row">
@@ -382,11 +405,8 @@ async function openRequestDetails(id) {
   `;
 
   if (r.archived) {
-    document.getElementById('modalTechnicienSelect')?.setAttribute('disabled', 'disabled');
-    document.getElementById('modalStatusSelect')?.setAttribute('disabled', 'disabled');
-    document.getElementById('saveDetailsBtn')?.setAttribute('disabled', 'disabled');
-    document.getElementById('archiveBtn')?.setAttribute('disabled', 'disabled');
-    document.getElementById('addNoteBtn')?.setAttribute('disabled', 'disabled');
+    ['modalTechnicienSelect','modalStatusSelect','saveDetailsBtn','archiveBtn','addNoteBtn','stockArticleSelect','stockQuantity','addStockBtn']
+      .forEach(id => document.getElementById(id)?.setAttribute('disabled', 'disabled'));
     const ar = document.getElementById('actionRow');
     if (ar) {
       const p = document.createElement('div');
@@ -399,6 +419,7 @@ async function openRequestDetails(id) {
 
   document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
   document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
+  document.getElementById('addStockBtn')?.addEventListener('click', () => addStockToRequest(id));
   document.getElementById('archiveBtn')?.addEventListener('click', async () => {
     const ok = await showConfirm("Confirmez-vous l'archivage de cette intervention ? Cette action est irréversible.");
     if (!ok) return;
@@ -406,6 +427,101 @@ async function openRequestDetails(id) {
   });
 
   if (typeof modal.showModal === 'function') modal.showModal();
+
+  await loadStockArticles();
+  await loadUsedArticles(id);
+}
+
+async function loadStockArticles() {
+  const select = document.getElementById('stockArticleSelect');
+  if (!select) return;
+
+  const { data, error } = await sb()
+    .from('articles')
+    .select('id, nom, quantite, prix_unitaire')
+    .order('nom', { ascending: true });
+
+  if (error) {
+    select.innerHTML = '<option value="">Erreur chargement du stock</option>';
+    return;
+  }
+
+  stockArticles = data || [];
+  select.innerHTML = '<option value="">Choisir un article</option>' + stockArticles.map(a =>
+    `<option value="${a.id}" data-prix="${a.prix_unitaire ?? 0}">${escapeHtml(a.nom)} — stock : ${a.quantite ?? 0}</option>`
+  ).join('');
+}
+
+async function loadUsedArticles(interventionId) {
+  const box = document.getElementById('usedArticlesBox');
+  if (!box) return;
+
+  const { data, error } = await sb()
+    .from('intervention_articles')
+    .select('id, quantite_utilisee, prix_unitaire, articles(nom)')
+    .eq('intervention_id', interventionId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    box.innerHTML = `<p class="meta">Erreur chargement des articles : ${escapeHtml(error.message)}</p>`;
+    return;
+  }
+
+  const items = data || [];
+  box.innerHTML = items.map(i => `
+    <div class="request-card">
+      <div>
+        <strong>${escapeHtml(i.articles?.nom || 'Article')}</strong>
+        <div class="meta">Quantité : ${i.quantite_utilisee} · Prix unitaire : ${i.prix_unitaire} €</div>
+      </div>
+      <div class="meta">Total : ${(Number(i.quantite_utilisee) * Number(i.prix_unitaire)).toFixed(2)} €</div>
+    </div>
+  `).join('') || '<p class="meta">Aucun article utilisé.</p>';
+}
+
+async function addStockToRequest(interventionId) {
+  const articleSelect = document.getElementById('stockArticleSelect');
+  const quantityInput = document.getElementById('stockQuantity');
+  const articleId = articleSelect?.value;
+  const quantity = Number(quantityInput?.value || 0);
+
+  if (!articleId) return alert('Choisissez un article.');
+  if (!quantity || quantity <= 0) return alert('Saisissez une quantité valide.');
+
+  const article = stockArticles.find(a => String(a.id) === String(articleId));
+  if (!article) return alert('Article introuvable.');
+  if (quantity > Number(article.quantite || 0)) {
+    return alert(`Stock insuffisant : ${article.quantite} disponible(s).`);
+  }
+
+  const { error: insertError } = await sb().from('intervention_articles').insert([{
+    intervention_id: interventionId,
+    article_id: article.id,
+    quantite_utilisee: quantity,
+    prix_unitaire: article.prix_unitaire ?? 0,
+    created_by: currentUser?.email || null
+  }]);
+
+  if (insertError) return alert('Erreur enregistrement article : ' + insertError.message);
+
+  const newQuantity = Number(article.quantite || 0) - quantity;
+  const { error: updateError } = await sb()
+    .from('articles')
+    .update({ quantite: newQuantity, updated_at: new Date().toISOString() })
+    .eq('id', article.id);
+
+  if (updateError) return alert('Article enregistré, mais erreur mise à jour du stock : ' + updateError.message);
+
+  await sb().from('historique_stock').insert([{
+    article_id: article.id,
+    changement: -quantity,
+    raison: 'Utilisation dans une intervention',
+    reference_intervention_id: interventionId,
+    created_by: currentUser?.email || null
+  }]);
+
+  await loadStockArticles();
+  await loadUsedArticles(interventionId);
 }
 
 async function saveRequestDetails(id) {
