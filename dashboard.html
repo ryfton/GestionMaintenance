@@ -22,7 +22,6 @@
         <p>Tableau de bord</p>
       </div>
     </div>
-
     <nav class="menu">
       <a href="dashboard.html">Accueil</a>
       <a href="installations.html">Installations</a>
@@ -36,72 +35,36 @@
   <main class="container auth-only">
     <div class="dashboard-grid">
       <a class="card dashboard-card dashboard-link-card" href="requests.html">
-        <div class="quick-card-icon">⚑</div>
         <h3>Interventions ouvertes</h3>
         <p id="openCount">0</p>
-        <span class="card-link-label">Voir la liste</span>
       </a>
-
-      <a class="card dashboard-card dashboard-link-card" href="archives.html">
-        <div class="quick-card-icon">✓</div>
+      <a class="card dashboard-card dashboard-link-card" href="requests.html">
+        <h3>En cours</h3>
+        <p id="inProgressCount">0</p>
+      </a>
+      <a class="card dashboard-card dashboard-link-card" href="requests.html">
         <h3>Terminées</h3>
         <p id="doneCount">0</p>
-        <span class="card-link-label">Voir les archives</span>
       </a>
-
-      <a class="card dashboard-card dashboard-link-card" href="installations.html">
-        <div class="quick-card-icon">🏢</div>
-        <h3>Installations</h3>
-        <p id="installationCount">0</p>
-        <span class="card-link-label">Gérer les sites</span>
-      </a>
-
-      <a class="card dashboard-card dashboard-link-card" href="stock.html">
-        <div class="quick-card-icon">📦</div>
-        <h3>Stock</h3>
-        <p id="stockAlertCount">0</p>
-        <span class="card-link-label">Voir le stock</span>
-      </a>
+      <div class="card dashboard-card">
+        <h3>Rôle</h3>
+        <p id="userRoleText">-</p>
+      </div>
     </div>
 
-    <div class="dashboard-lower">
-      <div class="card dashboard-card dashboard-summary">
-        <div class="summary-header">
-          <h2>Interventions</h2>
-          <a href="requests.html" class="summary-link">Voir tout</a>
-        </div>
+    <div class="card">
+      <h2>Prochaines maintenances</h2>
+      <p id="upcomingCount" class="meta">Chargement...</p>
+      <div id="upcomingMaintList" class="request-list" style="margin-top:12px">Chargement...</div>
+    </div>
 
-        <div class="summary-metrics">
-          <div class="metric-item">
-            <span>En cours</span>
-            <strong id="openCountSummary">0</strong>
-          </div>
-          <div class="metric-item">
-            <span>En attente</span>
-            <strong id="waitingCountSummary">0</strong>
-          </div>
-          <div class="metric-item">
-            <span>Terminées</span>
-            <strong id="doneCountSummary">0</strong>
-          </div>
-        </div>
-
-        <div class="summary-note">
-          <p id="statsText">Chargement...</p>
-        </div>
-      </div>
-
-      <div class="dashboard-side-stack">
-        <div class="card dashboard-card mini-card">
-          <h3>Bienvenue</h3>
-          <p class="meta">Rôle : <strong id="userRoleText">-</strong></p>
-        </div>
-
-        <div class="card dashboard-card mini-card">
-          <h3>Articles en alerte</h3>
-          <div id="articlesAlerteList" class="stack-list">Chargement...</div>
-        </div>
-      </div>
+    <div class="card">
+      <h2>Bienvenue</h2>
+      <p id="statsText">Chargement...</p>
+    </div>
+    <div class="card">
+      <h3>Articles en alerte de stock</h3>
+      <div id="articlesAlerteList" class="request-list">Chargement...</div>
     </div>
   </main>
 
