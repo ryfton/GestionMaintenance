@@ -1,12 +1,12 @@
-// Script unique : fonctions applicatives + routeur + tableau de bord
-
 let currentUser = null;
 let currentProfile = null;
 let selectedPriority = 'Basse';
 let requests = [];
 let technicians = [];
 
-function sb() { return window.supabaseClient; }
+function sb() {
+  return window.supabaseClient;
+}
 
 function page() {
   const path = location.pathname.split('/').pop() || 'index.html';
@@ -20,10 +20,22 @@ function page() {
 }
 
 function badgeClass(status) {
-  return ({'NOUVEAU':'b-nouveau','EN COURS':'b-cours','EN ATTENTE':'b-attente','TERMINE':'b-termine','ANNULE':'b-annule'})[status] || 'b-attente';
+  return ({
+    'NOUVEAU': 'b-nouveau',
+    'EN COURS': 'b-cours',
+    'EN ATTENTE': 'b-attente',
+    'TERMINE': 'b-termine',
+    'ANNULE': 'b-annule'
+  })[status] || 'b-attente';
 }
 
-function roleName(r) { return ({admin:'Administrateur',technicien:'Technicien',demandeur:'Demandeur'})[r] || 'Utilisateur'; }
+function roleName(r) {
+  return ({
+    admin: 'Administrateur',
+    technicien: 'Technicien',
+    demandeur: 'Demandeur'
+  })[r] || 'Utilisateur';
+}
 
 async function ensureAuth() {
   const { data } = await sb().auth.getSession();
@@ -32,345 +44,570 @@ async function ensureAuth() {
   return !!currentUser;
 }
 
+function showLoginState() {
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen = document.getElementById('appScreen');
+  const roleLabel = document.getElementById('roleLabel');
+  if (loginScreen) loginScreen.classList.add('active');
+  if (appScreen) appScreen.classList.remove('active');
+  if (roleLabel) roleLabel.textContent = 'ACCUEIL';
+}
+
+function showAppState() {
+  const loginScreen = document.getElementById('loginScreen');
+  const appScreen = document.getElementById('appScreen');
+  const roleLabel = document.getElementById('roleLabel');
+  if (loginScreen) loginScreen.classList.remove('active');
+  if (appScreen) appScreen.classList.add('active');
+  if (roleLabel) roleLabel.textContent = `Connecté : ${currentUser?.email || ''}`;
+}
+
 async function loadProfile(userId) {
-  const { data, error } = await sb().from('profiles').select('*').eq('id', userId).single();
-  if (!error) currentProfile = data;
+  const { data, error } = await sb().from('profiles').select('*').eq('id', userId).maybeSingle();
+  if (error || !data) {
+    const { data: d2, error: e2 } = await sb().from('profiles').select('*').eq('user_id', userId).maybeSingle();
+    if (!e2 && d2) {
+      currentProfile = d2;
+      return;
+    }
+  }
+  currentProfile = data || null;
 }
 
 async function loadTechnicians() {
+  const sel = document.getElementById('technicienSelect');
   const { data, error } = await sb().from('techniciens').select('*').eq('actif', true).order('nom', { ascending: true });
   technicians = error ? [] : (data || []);
-  renderTechniciansOptions();
+  if (sel) {
+    sel.innerHTML = '<option value="">Aucun</option>' + technicians.map(t => `<option value="${t.id}">${t.nom}</option>`).join('');
+  }
 }
 
-function renderTechniciansOptions(selected = ''){
-  const sel = document.getElementById('technicienSelect');
-  if (!sel) return;
-  sel.innerHTML = '<option value="">Aucun</option>' + technicians.map(t => `<option value="${t.id}" ${t.id==selected? 'selected':''}>${t.nom}</option>`).join('');
+function ensureConfirmModal() {
+  if (document.getElementById('confirmModal')) return;
+  const d = document.createElement('dialog');
+  d.id = 'confirmModal';
+  d.className = 'modal';
+  d.innerHTML = `
+    <div class="modal-content">
+      <button class="close-btn" id="confirmCloseBtn">×</button>
+      <h3 id="confirmTitle">Confirmer</h3>
+      <p id="confirmMessage" class="meta" style="margin-top:10px;">Message</p>
+      <div style="margin-top:18px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="ghost" id="confirmCancel">Annuler</button>
+        <button class="primary" id="confirmOk">Confirmer</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(d);
+  d.querySelector('#confirmCloseBtn')?.addEventListener('click', () => d.close());
+  d.querySelector('#confirmCancel')?.addEventListener('click', () => d.close());
+}
+
+function showConfirm(message, title = 'Confirmez') {
+  return new Promise((resolve) => {
+    ensureConfirmModal();
+    const modal = document.getElementById('confirmModal');
+    modal.querySelector('#confirmTitle').textContent = title;
+    modal.querySelector('#confirmMessage').textContent = message;
+
+    function cleanup(result) {
+      modal.removeEventListener('close', onClose);
+      resolve(result);
+    }
+    function onClose() {
+      cleanup(false);
+    }
+    function onOk(e) {
+      e.stopPropagation();
+      modal.close();
+      cleanup(true);
+    }
+
+    modal.addEventListener('close', onClose);
+    modal.querySelector('#confirmOk').addEventListener('click', onOk, { once: true });
+    if (typeof modal.showModal === 'function') modal.showModal(); else modal.style.display = 'block';
+  });
 }
 
 async function loadRequests() {
-  const { data, error } = await sb().from('interventions').select('*, techniciens(id, nom)').order('created_at', { ascending: false });
-  if (error) { console.error('Erreur chargement interventions :', error.message); return; }
+  const { data, error } = await sb()
+    .from('interventions')
+    .select('*, techniciens(id, nom)')
+    .eq('archived', false)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Erreur chargement interventions :', error.message);
+    return;
+  }
 
   requests = (data || []).map(row => ({
-    id: row.id, code: row.code, name: row.demandeur, department: row.departement, site: row.site,
-    equipment: row.equipement, material: row.materiel, priority: row.priorite, description: row.description,
-    status: row.etat, technicienId: row.technicien_id, technicienNom: row.techniciens?.nom || '',
-    createdAt: new Date(row.created_at).toLocaleString('fr-FR')
+    id: row.id,
+    code: row.code,
+    name: row.demandeur,
+    department: row.departement,
+    site: row.site,
+    equipment: row.equipement,
+    material: row.materiel,
+    priority: row.priorite,
+    description: row.description,
+    status: row.etat,
+    technicienId: row.technicien_id,
+    technicienNom: row.techniciens?.nom || '',
+    createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
+    archived: !!row.archived,
+    start_time: row.start_time || null,
+    end_time: row.end_time || null
   }));
 
-  render();
+  renderDashboard();
+  renderRequests();
 }
 
-function render() {
+function formatDateTime(dt) {
+  if (!dt) return '-';
+  try { return new Date(dt).toLocaleString('fr-FR'); } catch (e) { return dt; }
+}
+
+function durationText(start, end) {
+  if (!start || !end) return '-';
+  const s = new Date(start);
+  const e = new Date(end);
+  const diff = Math.max(0, e - s);
+  const minutes = Math.round(diff / 60000);
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hrs ? `${hrs}h ${mins}m` : `${mins}m`;
+}
+
+function renderDashboard() {
+  const openCount = document.getElementById('openCount');
+  const doneCount = document.getElementById('doneCount');
+  const userRoleText = document.getElementById('userRoleText');
+  const statsText = document.getElementById('statsText');
+  if (!statsText) return;
+
+  const total = requests.length;
+  const nouveau = requests.filter(r => r.status === 'NOUVEAU').length;
+  const cours = requests.filter(r => r.status === 'EN COURS').length;
+  const done = requests.filter(r => r.status === 'TERMINE').length;
+  const open = requests.filter(r => ['NOUVEAU', 'EN COURS', 'EN ATTENTE'].includes(r.status)).length;
+
+  if (openCount) openCount.textContent = open;
+  if (doneCount) doneCount.textContent = done;
+  if (userRoleText) userRoleText.textContent = roleName(currentProfile?.role);
+  statsText.textContent = `${total} total · ${nouveau} nouveau · ${cours} en cours`;
+}
+
+function renderRequests() {
   const list = document.getElementById('requestList');
   if (!list) return;
 
-  const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
+  const q = document.getElementById('searchInput')?.value?.toLowerCase() || '';
   const status = document.getElementById('statusFilter')?.value || '';
   const priority = document.getElementById('priorityFilter')?.value || '';
 
-  const filtered = requests.filter(r => {
-    if (q && ![r.code, r.name, r.department, r.site, r.equipment, r.material, r.description, r.technicienNom].join(' ').toLowerCase().includes(q)) return false;
-    if (status && r.status !== status) return false;
-    if (priority && r.priority !== priority) return false;
-    return true;
-  });
+  const filtered = requests.filter(r =>
+    (!q || [r.code, r.name, r.department, r.site, r.equipment, r.material, r.description, r.technicienNom].join(' ').toLowerCase().includes(q)) &&
+    (!status || r.status === status) &&
+    (!priority || r.priority === priority)
+  );
 
   list.innerHTML = filtered.map(r => `
-    <article class="request-card" data-id="${r.id}">
+    <div class="request-card" data-id="${r.id}">
       <div>
-        <div class="meta">${r.code} · ${r.name}</div>
+        <strong>${r.code || ''} — ${r.equipment || ''}</strong>
+        <p class="meta">${r.name || ''} · ${r.department || ''} · ${r.site || ''}</p>
+        <p class="meta">Technicien : ${r.technicienNom || 'Aucun'} · Créé : ${r.createdAt}</p>
+        <p style="margin-top:8px;">${r.description || ''}</p>
       </div>
-      <div style="text-align:right">
-        <div class="badge ${badgeClass(r.status)}">${r.priority}</div>
-        <div class="meta" style="margin-top:10px">${r.createdAt}</div>
-      </div>
-    </article>
-  `).join('') || '<p class="meta">Aucune intervention trouvée.</p>';
-}
-
-async function refreshAll() { await Promise.all([loadTechnicians(), loadRequests()]); }
-
-async function login() {
-  const email = document.getElementById('email')?.value.trim();
-  const password = document.getElementById('password')?.value.trim();
-  const { data, error } = await sb().auth.signInWithPassword({ email, password });
-  if (error) return alert('Connexion refusée : ' + error.message);
-  currentUser = data.user; await loadProfile(currentUser.id); location.href = 'dashboard.html';
-}
-
-async function logout(){ await sb().auth.signOut(); currentUser=null; currentProfile=null; technicians=[]; requests=[]; location.href='index.html'; }
-
-const modal = document.getElementById?.('detailsModal');
-function openDetails(id){
-  const r = requests.find(x=>x.id==id);
-  const m = document.getElementById('detailsModal');
-  if (!m || !r) return;
-  const modalBody = m.querySelector('#modalBody');
-  modalBody.innerHTML = `
-    <article class="request-card" data-id="${r.id}">
-      <div>
-        <div class="meta">${r.code || ''} · ${r.name || ''}</div>
-      </div>
-      <div style="text-align:right">
-        <div class="badge ${badgeClass(r.status)}">${r.priority}</div>
-        <div class="meta" style="margin-top:10px">${r.createdAt}</div>
-      </div>
-    </article>
-
-    <div class="detail-grid">
-      <div class="detail-box"><strong>Demandeur</strong><div>${r.name}</div></div>
-      <div class="detail-box"><strong>Département</strong><div>${r.department}</div></div>
-      <div class="detail-box"><strong>Site</strong><div>${r.site}</div></div>
-      <div class="detail-box"><strong>Priorité</strong><div>${r.priority}</div></div>
-      <div class="detail-box"><strong>Technicien</strong><div>${r.technicienNom || 'Aucun renseigné'}</div></div>
-      <div class="detail-box"><strong>Matériel</strong><div>${r.material || 'Aucun renseigné'}</div></div>
-      <div class="detail-box" style="grid-column:1/-1"><strong>Description</strong><div style="margin-top:6px">${r.description}</div></div>
-    </div>
-
-    <div class="action-row">
-      <button class="status-btn" data-action="take">Prendre en charge</button>
-      <button class="status-btn" data-status="NOUVEAU">Nouveau</button>
-      <button class="status-btn" data-status="EN COURS">En cours</button>
-      <button class="status-btn" data-status="EN ATTENTE">En attente</button>
-      <button class="status-btn" data-status="TERMINE">Terminé</button>
-      <button class="status-btn" data-status="ANNULE">Annulé</button>
-    </div>
-
-    <div style="margin-top:16px">
-      <label for="noteText"><strong>Ajouter une note</strong></label>
-      <textarea id="noteText" class="note-box" placeholder="Ajouter un commentaire de suivi..."></textarea>
-      <div class="action-row">
-        <button class="small-btn" id="saveNoteBtn">Enregistrer la note</button>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:140px;">
+        <span class="badge ${badgeClass(r.status)}">${r.status || ''}</span>
+        <span class="badge">${r.priority || ''}</span>
+        <button class="small-btn archive-btn" data-id="${r.id}" ${r.archived || !canArchive(r.status) ? 'disabled' : ''} style="margin-top:8px;">Archiver</button>
       </div>
     </div>
+  `).join('') || '<div class="card">Aucune intervention trouvée.</div>';
 
-    <div style="margin-top:16px">
-      <label><strong>Assigner un technicien</strong></label>
-      <div id="techSelectWrap"></div>
-      <div class="action-row">
-        <button class="small-btn" id="saveTechBtn">Assigner</button>
-      </div>
-    </div>
-
-    <div style="margin-top:16px">
-      <strong>Historique</strong>
-      <div id="historyBox" style="margin-top:10px"></div>
-    </div>
-  `;
-  m.dataset.id = id; m.showModal?.(); loadHistory(id); renderTechniciansOptionsInModal(r.technicienId || '');
-}
-
-async function loadHistory(id){
-  const box = document.getElementById('historyBox'); if(!box) return;
-  const { data: history, error: hError } = await sb().from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
-  const { data: notes, error: nError } = await sb().from('notes_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false });
-  if (hError || nError) { box.innerHTML = '<p class="meta">Erreur chargement historique</p>'; return; }
-  box.innerHTML = '';
-  (notes||[]).forEach(n=>{ box.innerHTML += `<div class="note">${n.note} <div class="meta">${new Date(n.created_at).toLocaleString('fr-FR')}</div></div>` });
-  (history||[]).forEach(h=>{ box.innerHTML += `<div class="history">${h.note} <div class="meta">${new Date(h.created_at).toLocaleString('fr-FR')}</div></div>` });
-}
-
-function renderTechniciansOptionsInModal(selected=''){ const wrap = document.getElementById('techSelectWrap'); if(!wrap) return; wrap.innerHTML = `<select id="technicienSelectModal"><option value="">Aucun</option>${technicians.map(t=>`<option value="${t.id}" ${t.id==selected?'selected':''}>${t.nom}</option>`).join('')}</select>`; }
-
-async function saveNote(id){
-  const noteText = document.getElementById('noteText')?.value.trim(); if(!noteText) return alert('Note vide');
-  const { error } = await sb().from('notes_interventions').insert([{ intervention_id: id, note: noteText, created_by: currentUser?.email || null }]);
-  if (error) return alert('Erreur enregistrement note : '+error.message);
-  await loadHistory(id); document.getElementById('noteText').value='';
-}
-
-async function assignTech(id, techId){
-  const { error } = await sb().from('interventions').update({ technicien_id: techId, updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) return alert('Erreur assignation : '+error.message);
-  await sb().from('historique_interventions').insert([{ intervention_id: id, ancien_etat: null, nouvel_etat: 'ASSIGNE', note: `Assignation`, changed_by: currentUser?.email || null }]);
-  await refreshAll(); document.getElementById('detailsModal')?.close?.();
-}
-
-async function updateStatus(id, newStatus){
-  const oldRequest = requests.find(r=>r.id===id); const oldStatus = oldRequest ? oldRequest.status : null;
-  const { error } = await sb().from('interventions').update({ etat: newStatus, updated_at: new Date().toISOString() }).eq('id', id);
-  if (error) return alert('Erreur mise à jour : '+error.message);
-  await sb().from('historique_interventions').insert([{ intervention_id: id, ancien_etat: oldStatus, nouvel_etat: newStatus, note: `Changement d\'état`, changed_by: currentUser?.email || null }]);
-  await refreshAll(); document.getElementById('detailsModal')?.close?.();
-}
-
-async function takeCharge(id){
-  const tech = technicians.find(t=>t.email===currentUser?.email);
-  if(!tech) return alert('Aucun technicien trouvé pour cet utilisateur.');
-  await assignTech(id, tech.id);
-}
-
-function setText(id, value) {
-  const element = document.getElementById(id);
-  if (element) element.textContent = value;
-}
-
-async function updateDashboard() {
-  const ouvertes = requests.filter(r => ['NOUVEAU', 'EN COURS', 'EN ATTENTE'].includes(r.status)).length;
-  const enCours = requests.filter(r => r.status === 'EN COURS').length;
-  const enAttente = requests.filter(r => r.status === 'EN ATTENTE').length;
-  const terminees = requests.filter(r => r.status === 'TERMINE').length;
-
-  setText('openCount', ouvertes);
-  setText('openCountSummary', enCours);
-  setText('waitingCountSummary', enAttente);
-  setText('doneCountSummary', terminees);
-  setText('statsText', `${requests.length} intervention(s) enregistrée(s), dont ${ouvertes} ouverte(s).`);
-
-  try {
-    const { count, error } = await sb().from('installations').select('id', { count: 'exact', head: true });
-    setText('installationCount', error ? '-' : (count ?? 0));
-  } catch { setText('installationCount', '-'); }
-
-  try {
-    const { data, error } = await sb().from('articles').select('quantite,seuil');
-    if (!error && Array.isArray(data)) {
-      setText('stockAlertCount', data.filter(a => Number(a.quantite) <= Number(a.seuil)).length);
-    } else { setText('stockAlertCount', '-'); }
-  } catch { setText('stockAlertCount', '-'); }
-
-  renderRecentRequests();
-}
-
-function renderRecentRequests() {
-  const lower = document.querySelector('.dashboard-lower');
-  if (!lower) return;
-
-  document.getElementById('recentRequestsCard')?.remove();
-
-  const card = document.createElement('section');
-  card.className = 'card dashboard-recent';
-  card.id = 'recentRequestsCard';
-
-  const recent = requests.slice(0, 6);
-  card.innerHTML = `
-    <div class="dashboard-main-header">
-      <h2>Dernières interventions</h2>
-      <a class="inline-link" href="requests.html">Voir tout</a>
-    </div>
-    <div class="request-list">
-      ${recent.map(r => `
-        <a class="request-card dashboard-request-link" href="requests.html">
-          <div>
-            <strong>${r.code || 'Intervention'}</strong>
-            <div class="meta">${r.name || ''} · ${r.site || ''}</div>
-          </div>
-          <div>
-            <span class="badge ${badgeClass(r.status)}">${r.status || '—'}</span>
-            <div class="meta">${r.createdAt || ''}</div>
-          </div>
-        </a>
-      `).join('') || '<p class="meta">Aucune intervention trouvée.</p>'}
-    </div>
-  `;
-
-  lower.appendChild(card);
-}
-
-async function loadInstallationsSafely() {
-  try {
-    const { data, error } = await sb().from('installations').select('*').order('created_at', { ascending: false });
-    if (error) return;
-    const list = document.getElementById('installationsList');
-    if (!list || !Array.isArray(data)) return;
-    list.innerHTML = data.map(i => `
-      <article class="request-card">
-        <div>
-          <strong>${i.nom || i.name || 'Installation'}</strong>
-          <div class="meta">${i.site || i.lieu || ''}</div>
-        </div>
-      </article>
-    `).join('') || '<p class="meta">Aucune installation trouvée.</p>';
-  } catch {}
-}
-
-async function loadStockSafely() {
-  try {
-    const { data, error } = await sb().from('articles').select('*').order('created_at', { ascending: false });
-    if (error) return;
-    const list = document.getElementById('articlesList');
-    if (!list || !Array.isArray(data)) return;
-    list.innerHTML = data.map(a => `
-      <article class="request-card">
-        <div>
-          <strong>${a.nom || a.name || 'Article'}</strong>
-          <div class="meta">Quantité : ${a.quantite ?? '—'} · Seuil : ${a.seuil ?? '—'}</div>
-        </div>
-      </article>
-    `).join('') || '<p class="meta">Aucun article trouvé.</p>';
-  } catch {}
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const currentPage = page();
-
-  if (currentPage === 'login') {
-    document.getElementById('loginBtn')?.addEventListener('click', login);
-  }
-
-  if (currentPage === 'new-request') {
-    document.getElementById('requestForm')?.addEventListener('submit', async e=>{
-      e.preventDefault();
-      const payload = {
-        demandeur: document.getElementById('name').value.trim(), departement: document.getElementById('department').value.trim(), site: document.getElementById('site').value.trim(),
-        equipement: document.getElementById('equipment').value.trim(), materiel: document.getElementById('material').value.trim(), priorite: selectedPriority,
-        description: document.getElementById('description').value.trim(), etat: 'NOUVEAU', cree_par: currentUser?.id || null,
-        technicien_id: document.getElementById('technicienSelect')?.value || null
-      };
-      const { data, error } = await sb().from('interventions').insert([payload]).select().single();
-      if(error) return alert('Erreur enregistrement : '+error.message);
-      if(data){ await sb().from('historique_interventions').insert([{ intervention_id: data.id, ancien_etat: null, nouvel_etat: 'NOUVEAU', note: 'Création de l\'intervention', changed_by: currentUser?.email || null }]); }
-      e.target.reset(); selectedPriority='Basse'; document.querySelectorAll('.chip').forEach(b=>b.classList.toggle('active', b.dataset.value==='Basse')); await refreshAll(); alert('Intervention enregistrée.');
-    });
-
-    document.querySelectorAll('.chip')?.forEach(b=> b.addEventListener('click', e=>{ document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active')); b.classList.add('active'); selectedPriority = b.dataset.value;}));
-  }
-
-  if (currentPage === 'requests') {
-    document.getElementById('requestList')?.addEventListener('click', e=>{ const card = e.target.closest('.request-card'); if(card) openDetails(card.dataset.id); });
-  }
-
-  document.addEventListener('click', e=>{
-    const btn = e.target.closest('button'); if(!btn) return;
-    if(btn.dataset.action==='take') return takeCharge(document.getElementById('detailsModal')?.dataset.id);
-    if(btn.id==='saveNoteBtn') return saveNote(document.getElementById('detailsModal')?.dataset.id);
-    if(btn.id==='saveTechBtn') return assignTech(document.getElementById('detailsModal')?.dataset.id, document.getElementById('technicienSelectModal')?.value);
-    if(btn.classList.contains('status-btn') && btn.dataset.status) return updateStatus(document.getElementById('detailsModal')?.dataset.id, btn.dataset.status);
+  list.querySelectorAll('.request-card').forEach(card => {
+    card.addEventListener('click', () => openRequestDetails(card.dataset.id));
   });
 
-  document.getElementById('logoutBtn')?.addEventListener('click', ()=>{ logout(); });
-});
+  list.querySelectorAll('.archive-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.id;
+      const r = requests.find(x => String(x.id) === String(id));
+      if (!r) return alert('Intervention introuvable.');
+      if (r.archived) return alert('Déjà archivée.');
+      if (!canArchive(r.status)) return alert('Seules les interventions terminées ou annulées peuvent être archivées.');
+      const ok = await showConfirm("Confirmez-vous l'archivage de cette intervention ? Cette action est irréversible.");
+      if (!ok) return;
+      btn.disabled = true;
+      await setArchiveState(id, true);
+    });
+  });
+}
+
+function renderTechnicianOptionsForModal(selected = '') {
+  return '<option value="">Aucun</option>' + technicians.map(t =>
+    `<option value="${t.id}" ${String(t.id) === String(selected) ? 'selected' : ''}>${t.nom}</option>`
+  ).join('');
+}
+
+async function loadHistory(id) {
+  const [notesRes, histRes] = await Promise.all([
+    sb().from('notes_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false }),
+    sb().from('historique_interventions').select('*').eq('intervention_id', id).order('created_at', { ascending: false })
+  ]);
+  const notes = (notesRes.data || []).map(n => ({ note: n.note || n.contenu || '', auteur: n.created_by || n.auteur || 'Utilisateur', created_at: n.created_at || n.createdAt }));
+  const history = (histRes.data || []).map(h => ({ note: h.note || h.action || '', ancien_etat: h.ancien_etat || h.old_status, nouvel_etat: h.nouvel_etat || h.new_status, created_at: h.created_at || h.createdAt, changed_by: h.changed_by || h.auteur }));
+  return { notes, history };
+}
+
+function renderHistorySection(historyData) {
+  const { notes, history } = historyData || { notes: [], history: [] };
+  const notesHtml = notes.length ? notes.map(n => `
+    <div class="detail-box">
+      <small>${n.auteur} · ${n.created_at ? new Date(n.created_at).toLocaleString('fr-FR') : ''}</small>
+      <p style="margin-top:8px;">${escapeHtml(n.note)}</p>
+    </div>
+  `).join('') : '<p class="meta">Aucune note.</p>';
+
+  const histHtml = history.length ? history.map(h => `
+    <div class="detail-box">
+      <small>${h.changed_by || 'Système'} · ${h.created_at ? new Date(h.created_at).toLocaleString('fr-FR') : ''}</small>
+      <p style="margin-top:8px;">${escapeHtml(h.note)} <br><strong>État:</strong> ${h.ancien_etat || '-'} → ${h.nouvel_etat || '-'}</p>
+    </div>
+  `).join('') : '<p class="meta">Aucun historique.</p>';
+
+  return `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+      <div>
+        <h3>Notes</h3>
+        ${notesHtml}
+      </div>
+      <div>
+        <h3>Historique</h3>
+        ${histHtml}
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
+
+async function openRequestDetails(id) {
+  const modal = document.getElementById('detailsModal');
+  const modalBody = document.getElementById('modalBody');
+  let r = requests.find(x => String(x.id) === String(id));
+
+  if (!r) {
+    const { data: row, error } = await sb()
+      .from('interventions')
+      .select('*, techniciens(id, nom)')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !row) return alert('Intervention introuvable.');
+    r = {
+      id: row.id,
+      code: row.code,
+      name: row.demandeur,
+      department: row.departement,
+      site: row.site,
+      equipment: row.equipement,
+      material: row.materiel,
+      priority: row.priorite,
+      description: row.description,
+      status: row.etat,
+      technicienId: row.technicien_id,
+      technicienNom: row.techniciens?.nom || '',
+      createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
+      archived: !!row.archived,
+      start_time: row.start_time || null,
+      end_time: row.end_time || null
+    };
+  }
+
+  if (!modal || !modalBody || !r) return;
+
+  const historyData = await loadHistory(id);
+
+  modalBody.innerHTML = `
+    <h2>${r.code || ''} — ${r.equipment || ''}</h2>
+    <p class="meta">${escapeHtml(r.description || '')}</p>
+
+    <div class="detail-grid">
+      <div class="detail-box"><strong>Demandeur</strong><p>${escapeHtml(r.name || '-')}</p></div>
+      <div class="detail-box"><strong>Département</strong><p>${escapeHtml(r.department || '-')}</p></div>
+      <div class="detail-box"><strong>Site</strong><p>${escapeHtml(r.site || '-')}</p></div>
+      <div class="detail-box"><strong>Matériel</strong><p>${escapeHtml(r.material || '-')}</p></div>
+      <div class="detail-box"><strong>Priorité</strong><p>${escapeHtml(r.priority || '-')}</p></div>
+      <div class="detail-box"><strong>Créé le</strong><p>${r.createdAt || '-'}</p></div>
+      <div class="detail-box"><strong>Heure début</strong><p>${formatDateTime(r.start_time)}</p></div>
+      <div class="detail-box"><strong>Heure fin</strong><p>${formatDateTime(r.end_time)}</p></div>
+      <div class="detail-box"><strong>Durée</strong><p>${durationText(r.start_time, r.end_time)}</p></div>
+    </div>
+
+    <div class="detail-grid">
+      <div class="field">
+        <label for="modalTechnicienSelect">Technicien</label>
+        <select id="modalTechnicienSelect">${renderTechnicianOptionsForModal(r.technicienId)}</select>
+      </div>
+      <div class="field">
+        <label for="modalStatusSelect">Statut</label>
+        <select id="modalStatusSelect">
+          <option value="NOUVEAU" ${r.status === 'NOUVEAU' ? 'selected' : ''}>Nouveau</option>
+          <option value="EN COURS" ${r.status === 'EN COURS' ? 'selected' : ''}>En cours</option>
+          <option value="EN ATTENTE" ${r.status === 'EN ATTENTE' ? 'selected' : ''}>En attente</option>
+          <option value="TERMINE" ${r.status === 'TERMINE' ? 'selected' : ''}>Terminé</option>
+          <option value="ANNULE" ${r.status === 'ANNULE' ? 'selected' : ''}>Annulé</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="action-row" id="actionRow">
+      <button class="primary" id="saveDetailsBtn">Enregistrer</button>
+      <button class="ghost" id="archiveBtn">${r.archived ? 'Archivée' : 'Archiver'}</button>
+    </div>
+
+    <h3 style="margin-top:18px;">Ajouter une note</h3>
+    <textarea id="noteInput" class="note-box" placeholder="Écrire une note..."></textarea>
+    <div class="action-row">
+      <button class="primary" id="addNoteBtn">Ajouter la note</button>
+    </div>
+
+    <h3 style="margin-top:18px;">Historique & Notes</h3>
+    ${renderHistorySection(historyData)}
+  `;
+
+  if (r.archived) {
+    document.getElementById('modalTechnicienSelect')?.setAttribute('disabled', 'disabled');
+    document.getElementById('modalStatusSelect')?.setAttribute('disabled', 'disabled');
+    document.getElementById('saveDetailsBtn')?.setAttribute('disabled', 'disabled');
+    document.getElementById('archiveBtn')?.setAttribute('disabled', 'disabled');
+    document.getElementById('addNoteBtn')?.setAttribute('disabled', 'disabled');
+    const ar = document.getElementById('actionRow');
+    if (ar) {
+      const p = document.createElement('div');
+      p.className = 'meta';
+      p.style.marginTop = '8px';
+      p.textContent = 'Cette intervention est archivée et est en lecture seule.';
+      ar.parentNode.insertBefore(p, ar.nextSibling);
+    }
+  }
+
+  document.getElementById('saveDetailsBtn')?.addEventListener('click', () => saveRequestDetails(id));
+  document.getElementById('addNoteBtn')?.addEventListener('click', () => addRequestNote(id));
+  document.getElementById('archiveBtn')?.addEventListener('click', async () => {
+    const ok = await showConfirm("Confirmez-vous l'archivage de cette intervention ? Cette action est irréversible.");
+    if (!ok) return;
+    await setArchiveState(id, true);
+  });
+
+  if (typeof modal.showModal === 'function') modal.showModal();
+}
+
+async function saveRequestDetails(id) {
+  const r = requests.find(x => String(x.id) === String(id));
+  if (!r) return alert('Intervention introuvable.');
+  if (r.archived) return alert('Cette intervention est archivée et ne peut pas être modifiée.');
+
+  const status = document.getElementById('modalStatusSelect')?.value || null;
+  const technicienId = document.getElementById('modalTechnicienSelect')?.value || null;
+
+  const payload = { etat: status, technicien_id: technicienId || null };
+  const prevStatus = r.status;
+
+  if (prevStatus !== 'EN COURS' && status === 'EN COURS') {
+    payload.start_time = new Date().toISOString();
+  }
+  if (prevStatus === 'EN COURS' && status === 'TERMINE') {
+    payload.end_time = new Date().toISOString();
+  }
+
+  const { error } = await sb().from('interventions').update(payload).eq('id', id);
+
+  if (error) {
+    alert('Erreur modification : ' + error.message);
+    return;
+  }
+
+  await loadRequests();
+  await openRequestDetails(id);
+}
+
+async function addRequestNote(id) {
+  const note = document.getElementById('noteInput')?.value.trim();
+  if (!note) {
+    alert('Veuillez saisir une note');
+    return;
+  }
+
+  const payload = {
+    intervention_id: id,
+    note,
+    created_by: currentUser?.email || 'Utilisateur'
+  };
+
+  const { data, error } = await sb().from('notes_interventions').insert([payload]).select().single();
+
+  if (error) {
+    alert('Erreur ajout note : ' + error.message);
+    return;
+  }
+
+  document.getElementById('noteInput').value = '';
+  await openRequestDetails(id);
+}
+
+function canArchive(status) {
+  return status === 'TERMINE' || status === 'ANNULE';
+}
+
+async function setArchiveState(id, archive) {
+  const r = requests.find(x => String(x.id) === String(id));
+  if (!r) return alert('Intervention introuvable.');
+  if (archive && !canArchive(r.status)) return alert('Seules les interventions terminées ou annulées peuvent être archivées.');
+  if (!archive && r.archived) return alert('Une intervention archivée ne peut pas être désarchivée.');
+
+  const { error } = await sb().from('interventions').update({ archived: archive, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) return alert('Erreur archivage : ' + error.message);
+  await loadRequests();
+  if (page() === 'archives') await loadArchivedRequests();
+  document.getElementById('detailsModal')?.close?.();
+}
+
+async function loadArchivedRequests() {
+  const list = document.getElementById('archiveList');
+  if (!list) return;
+  const { data, error } = await sb()
+    .from('interventions')
+    .select('*, techniciens(id, nom)')
+    .eq('archived', true)
+    .order('created_at', { ascending: false });
+  if (error) { list.innerHTML = '<p class="meta">Erreur: '+error.message+'</p>'; return; }
+  const items = (data || []).map(row => ({
+    id: row.id,
+    code: row.code,
+    equipment: row.equipement,
+    name: row.demandeur,
+    department: row.departement,
+    site: row.site,
+    technicienNom: row.techniciens?.nom || '',
+    status: row.etat,
+    priority: row.priorite,
+    createdAt: new Date(row.created_at).toLocaleString('fr-FR'),
+    start_time: row.start_time || null,
+    end_time: row.end_time || null
+  }));
+
+  list.innerHTML = items.map(r => `
+     <div class="request-card" data-id="${r.id}">
+       <div>
+         <strong>${r.code || ''} — ${r.equipment || ''}</strong>
+         <p class="meta">${r.name} · ${r.department}</p>
+         <p class="meta">Début : ${formatDateTime(r.start_time)} · Fin : ${formatDateTime(r.end_time)} · Durée : ${durationText(r.start_time, r.end_time)}</p>
+       </div>
+       <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;min-width:140px;">
+         <span class="badge ${badgeClass(r.status)}">${r.status}</span>
+         <span class="badge">${r.priority}</span>
+       </div>
+     </div>
+  `).join('') || '<div class="card">Aucune intervention archivée.</div>';
+
+  list.querySelectorAll('.request-card').forEach(card => {
+    card.addEventListener('click', () => openRequestDetails(card.dataset.id));
+  });
+}
+
+function bindRequestsPage() {
+  document.getElementById('searchInput')?.addEventListener('input', renderRequests);
+  document.getElementById('statusFilter')?.addEventListener('change', renderRequests);
+  document.getElementById('priorityFilter')?.addEventListener('change', renderRequests);
+  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
+    document.getElementById('detailsModal')?.close();
+  });
+}
+
+function bindModalClose() {
+  document.getElementById('closeModalBtn')?.addEventListener('click', () => {
+    document.getElementById('detailsModal')?.close();
+  });
+}
+
+async function initRequestsPage() {
+  bindRequestsPage();
+  await ensureAuth();
+  if (currentUser?.id) await loadProfile(currentUser.id);
+  await loadTechnicians();
+  await loadRequests();
+}
+
+async function initArchivesPage() {
+  bindModalClose();
+  await ensureAuth();
+  if (currentUser?.id) await loadProfile(currentUser.id);
+  await loadTechnicians();
+  await loadArchivedRequests();
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const currentPage = page();
+  if (page() === 'requests') {
+    await initRequestsPage();
+  } else if (page() === 'dashboard') {
+    await ensureAuth();
+    if (currentUser?.id) await loadProfile(currentUser.id);
+    await loadTechnicians();
+    await loadRequests();
+  } else if (page() === 'new-request') {
+    await ensureAuth();
+    await loadTechnicians();
+  } else if (page() === 'archives') {
+    await initArchivesPage();
+  } else if (page() === 'installations') {
+    await ensureAuth();
+    if (currentUser?.id) await loadProfile(currentUser.id);
+    await loadTechnicians();
+  } else if (page() === 'stock') {
+    await ensureAuth();
+  }
+});
 
-  if (currentPage === 'requests') {
-    await ensureAuth();
-    await loadTechnicians();
-    await loadRequests();
-  } else if (currentPage === 'dashboard') {
-    await ensureAuth();
-    if (currentUser?.id) await loadProfile(currentUser.id);
-    await loadTechnicians();
-    await loadRequests();
-    await updateDashboard();
-  } else if (currentPage === 'new-request') {
-    await ensureAuth();
-    if (currentUser?.id) await loadProfile(currentUser.id);
-    await loadTechnicians();
-  } else if (currentPage === 'installations') {
-    await ensureAuth();
-    if (currentUser?.id) await loadProfile(currentUser.id);
-    await loadTechnicians();
-    await loadInstallationsSafely();
-  } else if (currentPage === 'stock') {
-    await ensureAuth();
-    await loadStockSafely();
-  } else if (currentPage === 'archives') {
-    await ensureAuth();
-    await loadRequests();
+async function login() {
+  const email = document.getElementById('email')?.value.trim() || '';
+  const password = document.getElementById('password')?.value.trim() || '';
+
+  if (!email || !password) {
+    return alert('Veuillez saisir email et mot de passe');
+  }
+
+  const { data, error } = await sb().auth.signInWithPassword({ email, password });
+  if (error) return alert('Connexion refusée : ' + error.message);
+
+  currentUser = data.user;
+  await loadProfile(currentUser.id);
+  showAppState();
+
+  if (!location.pathname.endsWith('dashboard.html')) {
+    location.href = 'dashboard.html';
+  }
+}
+
+if (document.getElementById('loginBtn')) {
+  document.getElementById('loginBtn').addEventListener('click', login);
+}
+
+sb().auth.getSession().then(async ({ data }) => {
+  if (data?.session) {
+    currentUser = data.session.user;
+    await loadProfile(currentUser.id);
+    if (location.pathname === '/' || location.pathname.endsWith('index.html')) {
+      location.href = 'dashboard.html';
+    }
+  } else {
+    if (location.pathname === '/' || location.pathname.endsWith('index.html')) {
+      showLoginState();
+    }
   }
 });
