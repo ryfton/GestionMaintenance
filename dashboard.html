@@ -63,22 +63,30 @@
       </a>
     </div>
 
-    <div class="dashboard-secondary-grid">
-      <div class="card dashboard-main-card">
-        <h2>Prochaines maintenances</h2>
-        <p id="upcomingCount" class="meta">Chargement...</p>
-        <div id="upcomingMaintList" class="request-list" style="margin-top:12px">Chargement...</div>
+    <div class="card dashboard-main-card">
+      <div class="dashboard-main-header">
+        <div>
+          <h2>Interventions</h2>
+          <p id="statsText" class="meta">Chargement...</p>
+        </div>
+        <a class="inline-link" href="requests.html">Voir la liste complète</a>
       </div>
 
-      <div class="dashboard-side-stack">
-        <div class="card dashboard-side-card">
-          <h2>Bienvenue</h2>
-          <p id="statsText">Chargement...</p>
+      <div class="dashboard-content-grid">
+        <div class="dashboard-list-panel">
+          <div id="requestList" class="request-list">Chargement...</div>
         </div>
 
-        <div class="card dashboard-side-card">
-          <h3>Articles en alerte de stock</h3>
-          <div id="articlesAlerteList" class="request-list">Chargement...</div>
+        <div class="dashboard-side-panel">
+          <div class="mini-panel">
+            <h3>Bienvenue</h3>
+            <p class="meta">Rôle : <strong id="userRoleText">-</strong></p>
+          </div>
+
+          <div class="mini-panel">
+            <h3>Articles en alerte</h3>
+            <div id="articlesAlerteList" class="request-list compact-list">Chargement...</div>
+          </div>
         </div>
       </div>
     </div>
