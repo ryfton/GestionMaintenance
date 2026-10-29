@@ -34,9 +34,33 @@
 
   <main class="container auth-only">
     <div class="dashboard-grid">
-      <div class="card quick-card"><h3>Interventions ouvertes</h3><p id="openCount">0</p></div>
-      <div class="card quick-card"><h3>Terminées</h3><p id="doneCount">0</p></div>
-      <div class="card quick-card"><h3>Rôle</h3><p id="userRoleText">-</p></div>
+      <a class="card quick-card dashboard-link-card" href="requests.html">
+        <div class="quick-card-icon">⚑</div>
+        <h3>Interventions ouvertes</h3>
+        <p id="openCount">0</p>
+        <span class="card-link-label">Voir la liste</span>
+      </a>
+
+      <a class="card quick-card dashboard-link-card" href="archives.html">
+        <div class="quick-card-icon">✓</div>
+        <h3>Terminées</h3>
+        <p id="doneCount">0</p>
+        <span class="card-link-label">Voir les archives</span>
+      </a>
+
+      <a class="card quick-card dashboard-link-card" href="installations.html">
+        <div class="quick-card-icon">🏢</div>
+        <h3>Installations</h3>
+        <p id="installationCount">0</p>
+        <span class="card-link-label">Gérer les sites</span>
+      </a>
+
+      <a class="card quick-card dashboard-link-card" href="stock.html">
+        <div class="quick-card-icon">📦</div>
+        <h3>Stock</h3>
+        <p id="stockAlertCount">0</p>
+        <span class="card-link-label">Voir le stock</span>
+      </a>
     </div>
 
     <div class="card">
