@@ -35,28 +35,28 @@
 
   <main class="container auth-only">
     <div class="dashboard-grid">
-      <a class="card quick-card dashboard-link-card" href="requests.html">
+      <a class="card dashboard-card dashboard-link-card" href="requests.html">
         <div class="quick-card-icon">⚑</div>
         <h3>Interventions ouvertes</h3>
         <p id="openCount">0</p>
         <span class="card-link-label">Voir la liste</span>
       </a>
 
-      <a class="card quick-card dashboard-link-card" href="archives.html">
+      <a class="card dashboard-card dashboard-link-card" href="archives.html">
         <div class="quick-card-icon">✓</div>
         <h3>Terminées</h3>
         <p id="doneCount">0</p>
         <span class="card-link-label">Voir les archives</span>
       </a>
 
-      <a class="card quick-card dashboard-link-card" href="installations.html">
+      <a class="card dashboard-card dashboard-link-card" href="installations.html">
         <div class="quick-card-icon">🏢</div>
         <h3>Installations</h3>
         <p id="installationCount">0</p>
         <span class="card-link-label">Gérer les sites</span>
       </a>
 
-      <a class="card quick-card dashboard-link-card" href="stock.html">
+      <a class="card dashboard-card dashboard-link-card" href="stock.html">
         <div class="quick-card-icon">📦</div>
         <h3>Stock</h3>
         <p id="stockAlertCount">0</p>
@@ -64,30 +64,42 @@
       </a>
     </div>
 
-    <div class="card dashboard-main-card">
-      <div class="dashboard-main-header">
-        <div>
+    <div class="dashboard-lower">
+      <div class="card dashboard-card dashboard-summary">
+        <div class="summary-header">
           <h2>Interventions</h2>
-          <p id="statsText" class="meta">Chargement...</p>
+          <a href="requests.html" class="summary-link">Voir tout</a>
         </div>
-        <a class="inline-link" href="requests.html">Voir la liste complète</a>
+
+        <div class="summary-metrics">
+          <div class="metric-item">
+            <span>En cours</span>
+            <strong id="openCountSummary">0</strong>
+          </div>
+          <div class="metric-item">
+            <span>En attente</span>
+            <strong id="waitingCountSummary">0</strong>
+          </div>
+          <div class="metric-item">
+            <span>Terminées</span>
+            <strong id="doneCountSummary">0</strong>
+          </div>
+        </div>
+
+        <div class="summary-note">
+          <p id="statsText">Chargement...</p>
+        </div>
       </div>
 
-      <div class="dashboard-content-grid">
-        <div class="dashboard-list-panel">
-          <div id="requestList" class="request-list">Chargement...</div>
+      <div class="dashboard-side-stack">
+        <div class="card dashboard-card mini-card">
+          <h3>Bienvenue</h3>
+          <p class="meta">Rôle : <strong id="userRoleText">-</strong></p>
         </div>
 
-        <div class="dashboard-side-panel">
-          <div class="mini-panel">
-            <h3>Bienvenue</h3>
-            <p class="meta">Rôle : <strong id="userRoleText">-</strong></p>
-          </div>
-
-          <div class="mini-panel">
-            <h3>Articles en alerte</h3>
-            <div id="articlesAlerteList" class="request-list compact-list">Chargement...</div>
-          </div>
+        <div class="card dashboard-card mini-card">
+          <h3>Articles en alerte</h3>
+          <div id="articlesAlerteList" class="stack-list">Chargement...</div>
         </div>
       </div>
     </div>
