@@ -6,6 +6,21 @@
 <title>Maintenance - Tableau de bord</title>
 <link rel="stylesheet" href="style-2.css">
 <link rel="stylesheet" href="sidebar.css">
+<style>
+main.dashboard-page { display:block; width:100%; min-width:0; }
+.dashboard-page .dashboard-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+.dashboard-page .dashboard-grid > .dashboard-card { min-width:0; min-height:0; width:100%; aspect-ratio:1; padding:18px 12px; gap:8px; }
+.dashboard-page .dashboard-grid h3 { min-height:2.4em; display:flex; align-items:center; justify-content:center; }
+.dashboard-page .quick-card-icon { flex-shrink:0; margin-bottom:0; }
+.dashboard-page .dashboard-lower { display:block; margin-top:20px; }
+.dashboard-page .dashboard-summary { display:block; aspect-ratio:auto; min-height:0; text-align:left; }
+.dashboard-page .summary-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:18px; }
+.dashboard-page .summary-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.dashboard-page .metric-item { display:flex; justify-content:space-between; gap:12px; padding:14px; background:#111a30; border-radius:12px; }
+.dashboard-page .summary-note { margin-top:16px; color:var(--muted); font-size:.95rem; }
+@media(max-width:1100px) { .dashboard-page .dashboard-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:560px) { .dashboard-page .summary-metrics { grid-template-columns:1fr; } .dashboard-page .dashboard-grid > .dashboard-card { padding:12px 8px; } .dashboard-page .dashboard-grid p { font-size:1.1rem; overflow-wrap:anywhere; } }
+</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL = "https://nysedvoipzetqafcnqdj.supabase.co";
@@ -21,7 +36,7 @@ window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 <button class="small-btn" id="logoutBtn" type="button">Déconnexion</button>
 </nav>
 </header>
-<main class="container auth-only">
+<main class="container auth-only dashboard-page">
 <div class="dashboard-grid">
 <div class="card dashboard-card"><div class="quick-card-icon">👤</div><h3>Rôle</h3><p id="userRoleText">-</p></div>
 <a class="card dashboard-card dashboard-link-card" href="requests.html"><div class="quick-card-icon">⚑</div><h3>Interventions ouvertes</h3><p id="openCount">0</p></a>
@@ -29,15 +44,15 @@ window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 <a class="card dashboard-card dashboard-link-card" href="stock.html"><div class="quick-card-icon">📦</div><h3>Alertes stock</h3><p id="stockAlertCount">0</p></a>
 </div>
 <div class="dashboard-lower">
-<div class="card dashboard-card dashboard-summary">
-<div class="summary-header"><h2>Interventions</h2><a href="requests.html" class="summary-link">Voir tout</a></div>
+<section class="card dashboard-summary">
+<div class="summary-header"><h2>Interventions</h2><a href="requests.html" class="inline-link">Voir tout</a></div>
 <div class="summary-metrics">
 <div class="metric-item"><span>En cours</span><strong id="openCountSummary">0</strong></div>
 <div class="metric-item"><span>En attente</span><strong id="waitingCountSummary">0</strong></div>
 <div class="metric-item"><span>Terminées</span><strong id="doneCountSummary">0</strong></div>
 </div>
 <div class="summary-note"><p id="statsText">Chargement...</p></div>
-</div>
+</section>
 </div>
 </main>
 <script src="script-3.js"></script>
