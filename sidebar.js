@@ -158,8 +158,10 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!shouldInitSidebar()) return;
-    const hasTopbar = document.querySelector('.topbar') !== null || document.querySelector('.menu') !== null;
-    if (!hasTopbar) return;
+
+    const hasNativeNavigation = document.querySelector('.topbar') !== null || document.querySelector('.menu') !== null;
+    if (hasNativeNavigation) return;
+
     if (!document.getElementById('appSidebar')) {
       buildSidebar();
     }
