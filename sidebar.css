@@ -1,3 +1,9 @@
+/*
+  Fix: restore original page layout and responsive behavior.
+  The sidebar must only be injected when the page does not already have its own header/nav.
+  This avoids hiding the topbar/menu and breaking forms/dashboard layouts.
+*/
+
 :root {
   --sidebar-width: 240px;
   --sidebar-collapsed: 86px;
@@ -179,6 +185,7 @@
   padding: 10px 8px;
 }
 
+/* Restore original layout: only apply sidebar layout when no native nav exists */
 body.sidebar-enabled .topbar,
 body.sidebar-enabled .menu {
   display: none !important;
@@ -208,7 +215,13 @@ body.sidebar-enabled .menu {
 
 @media (max-width: 900px) {
   .mobile-menu-button { display: inline-flex; }
-  .app-sidebar { position: fixed; top: 0; left: 0; bottom: 0; transform: translateX(-100%); }
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+  }
   .app-sidebar.open { transform: translateX(0); }
   .sidebar-overlay.visible { display: block; }
   .page-with-sidebar { margin-left: 0; }
