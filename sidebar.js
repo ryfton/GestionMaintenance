@@ -156,12 +156,22 @@
     return page !== 'index.html' && page !== '';
   }
 
+  function loadAlertsModule() {
+    if (!['dashboard.html', 'stock.html', 'installations.html'].includes(currentPage())) return;
+    if (document.getElementById('alertsModuleScript')) return;
+    const script = document.createElement('script');
+    script.id = 'alertsModuleScript';
+    script.src = 'alerts.js';
+    script.async = true;
+    script.onerror = () => console.error('Impossible de charger le module des alertes.');
+    document.head.appendChild(script);
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    if (!shouldInitSidebar()) return;
-    const hasTopbar = document.querySelector('.topbar') !== null || document.querySelector('.menu') !== null;
-    if (!hasTopbar) return;
-    if (!document.getElementById('appSidebar')) {
-      buildSidebar();
+    if (shouldInitSidebar()) {
+      const hasTopbar = document.querySelector('.topbar') !== null || document.querySelector('.menu') !== null;
+      if (hasTopbar && !document.getElementById('appSidebar')) buildSidebar();
     }
+    loadAlertsModule();
   });
 })();
